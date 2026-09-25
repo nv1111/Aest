@@ -3,6 +3,14 @@ import type { ConsultationDTO, MessageDTO } from "@/types/models";
 
 export type ConsultationMode = "chat" | "audio" | "video";
 
+export interface ReviewDTO {
+  id: string;
+  authorName: string;
+  rating: number;
+  text: string;
+  createdAt: string;
+}
+
 /** consultationsService — the paid consultation flow (chat + billing). */
 export const consultationsService = {
   /** User's own consultations, newest first. */
@@ -14,9 +22,11 @@ export const consultationsService = {
     return http.get<{ consultations: ConsultationDTO[] }>(`/api/consultations${s ? `?${s}` : ""}`);
   },
 
-  /** Consultation + full message transcript (own only). */
+  /** Consultation + full message transcript + own review (own only). */
   get: (id: string) =>
-    http.get<{ consultation: ConsultationDTO; messages: MessageDTO[] }>(`/api/consultations/${id}`),
+    http.get<{ consultation: ConsultationDTO; messages: MessageDTO[]; review: ReviewDTO | null }>(
+      `/api/consultations/${id}`
+    ),
 
   /** Create + start immediately (server checks balance ≥ 3 minutes). */
   start: (astrologerId: string, mode: ConsultationMode) =>
@@ -34,4 +44,12 @@ export const consultationsService = {
 
   /** HMAC relay ticket for the socket.io chat service. */
   ticket: (id: string) => http.post<{ ticket: string }>(`/api/consultations/${id}/ticket`, {}),
+
+  /** Rate a completed consultation (one review per consultation). */
+  submitReview: (consultationId: string, rating: number, text?: string) =>
+    http.post<{ review: ReviewDTO }>("/api/reviews", {
+      consultationId,
+      rating,
+      text: text?.trim() ? text.trim() : undefined,
+    }),
 };

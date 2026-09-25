@@ -94,6 +94,24 @@ const consultation = {
   walletReference: "Wallet transaction",
   viewWallet: "View in wallet",
   noCharge: "No charge was recorded",
+
+  // review
+  rateCta: "Rate your consultation",
+  rateCtaBody: "How was your session with {name}? Your rating helps other users.",
+  rateTitle: "Rate your consultation",
+  rateStarsAria: "Rate {count} out of 5 stars",
+  rateYourStars: "Your rating",
+  rateHint: "Tap a star to rate",
+  rateCommentPlaceholder: "Anything you'd like to share? (optional)",
+  rateSubmit: "Submit rating",
+  rateSubmitting: "Submitting…",
+  rateSkip: "Maybe later",
+  rateThanks: "Thank you for rating",
+  rateThanksBody: "Your rating is now part of {name}'s public profile.",
+  rateGiven: "You rated this consultation",
+  rateYourReview: "Your review",
+  rateAria: "Rated {count} out of 5",
+  rateFailed: "Couldn't save your rating. Please try again.",
 };
 
 export default consultation;

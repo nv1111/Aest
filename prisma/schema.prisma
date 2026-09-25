@@ -128,17 +128,19 @@ model Astrologer {
 }
 
 model Review {
-  id           String    @id @default(uuid())
-  astrologerId String
-  astrologer   Astrologer @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
-  userId       String?
-  authorName   String
-  rating       Int // 1..5
-  text         String
-  createdAt    DateTime  @default(now())
-  isDemo       Boolean   @default(true)
+  id             String    @id @default(uuid())
+  astrologerId   String
+  astrologer     Astrologer @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+  userId         String?
+  authorName     String
+  rating         Int // 1..5
+  text           String
+  consultationId String? @unique // one review per consultation (user-generated reviews)
+  createdAt      DateTime  @default(now())
+  isDemo         Boolean   @default(true)
 
   @@index([astrologerId])
+  @@index([userId])
 }
 
 model Favorite {

@@ -231,11 +231,11 @@ export default function AstrologerProfileScreen() {
       <section className="mt-6" aria-label={t("consultation.ratePerMinute")}>
         <SectionHeader>{t("consultation.ratePerMinute")}</SectionHeader>
         <div className="rounded-2xl border bg-card p-4">
-          <div className="flex items-baseline gap-1">
+          <div className="flex items-baseline gap-1.5">
             <span className="font-display text-[30px] font-semibold leading-none text-foreground">
               {formatINR(a.pricePerMinute)}
             </span>
-            <span className="text-[13px] font-medium text-muted-foreground">{t("common.perMinute")}</span>
+            <span className="text-[15px] font-semibold text-muted-foreground">{t("common.perMinute")}</span>
           </div>
           <TrustNote variant="pricing" className="mt-3">
             {t("astrologers.rateNote")}
@@ -290,7 +290,7 @@ export default function AstrologerProfileScreen() {
             {modes.includes("audio") ? (
               <Button
                 variant="outline"
-                className="h-11 flex-1 rounded-full press"
+                className="h-11 flex-1 rounded-full bg-secondary/50 press hover:bg-secondary"
                 onClick={() => startConsultation("audio")}
                 aria-label={t("astrologers.startAudio")}
               >
@@ -301,7 +301,7 @@ export default function AstrologerProfileScreen() {
             {modes.includes("video") ? (
               <Button
                 variant="outline"
-                className="h-11 flex-1 rounded-full press"
+                className="h-11 flex-1 rounded-full bg-secondary/50 press hover:bg-secondary"
                 onClick={() => startConsultation("video")}
                 aria-label={t("astrologers.startVideo")}
               >
@@ -311,7 +311,7 @@ export default function AstrologerProfileScreen() {
             ) : null}
             <Button
               variant="outline"
-              className="h-11 rounded-full press"
+              className="h-11 rounded-full bg-secondary/50 press hover:bg-secondary"
               aria-label={t("astrologers.book")}
               onClick={() => setBookOpen(true)}
             >

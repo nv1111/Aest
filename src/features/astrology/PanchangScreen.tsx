@@ -136,7 +136,12 @@ export default function PanchangScreen() {
           </p>
 
           {/* ------------------------------------------------ plain summary */}
-          <TrustNote variant="info">{data.simpleSummary}</TrustNote>
+          <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] px-4 py-3.5">
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-primary">
+              {t("astrology.panchangTakeaway")}
+            </p>
+            <p className="mt-1 text-[13.5px] font-medium leading-relaxed text-foreground">{data.simpleSummary}</p>
+          </div>
           {!profileId ? (
             <p className="px-1 text-[12px] leading-relaxed text-muted-foreground/80">
               {t("astrology.defaultLocationNote")}

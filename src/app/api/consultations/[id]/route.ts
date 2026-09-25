@@ -4,8 +4,9 @@ import { ok, fail, requireUser, isAuthFailure } from "@/lib/api";
 import { consultationDTO, messageDTO } from "../_shared";
 
 /**
- * GET /api/consultations/[id] → { consultation, messages }
+ * GET /api/consultations/[id] → { consultation, messages, review }
  * Own consultations only (404 otherwise). Messages oldest-first.
+ * `review` is the caller's own rating for this consultation (or null).
  */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireUser();
@@ -25,8 +26,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     orderBy: { createdAt: "asc" },
   });
 
+  const review = await db.review.findUnique({
+    where: { consultationId: consultation.id },
+  });
+
   return ok({
     consultation: consultationDTO(consultation),
     messages: messages.map(messageDTO),
+    review: review
+      ? {
+          id: review.id,
+          authorName: review.authorName,
+          rating: review.rating,
+          text: review.text,
+          createdAt: review.createdAt.toISOString(),
+        }
+      : null,
   });
 }

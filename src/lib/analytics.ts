@@ -10,6 +10,8 @@ export type AnalyticsEvent =
   | "birth_profile_created"
   | "kundli_viewed"
   | "ai_question_asked"
+  | "reading_listened"
+  | "reading_rated"
   | "astrologer_viewed"
   | "consultation_started"
   | "consultation_completed"

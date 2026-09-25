@@ -7,6 +7,8 @@ const home = {
   askYourChartBody: "Ask anything about your chart — answered in simple language.",
   suggestedPrompts: "Try asking",
   today: "Today",
+  todayHighlightGood: "{name} — a favourable period until {time}",
+  todayHighlightRahu: "Rahu Kaal {start}–{end} — a window to pause, not begin",
   panchang: "Panchang",
   nakshatra: "Nakshatra",
   rahuKaal: "Rahu Kaal",

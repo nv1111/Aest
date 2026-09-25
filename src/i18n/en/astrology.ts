@@ -6,6 +6,9 @@ const astrology = {
   hubNoProfileBody:
     "Your kundli, life phases, transits and daily timings are all read from your birth details. Add them to begin — it takes a minute.",
   hubNoProfileCta: "Add birth details",
+  hubTrustTitle: "Where these numbers come from",
+  hubTrustBody:
+    "Every value here is calculated from your birth date, time and place using traditional Vedic methods — the same system an astrologer reads from. You can edit or delete your birth details anytime.",
 
   // module names (hub cards)
   kundli: "Kundli",
@@ -140,6 +143,7 @@ const astrology = {
   vara: "Vara",
   endsAt: "ends {date}",
   panchangFive: "The five angas",
+  panchangTakeaway: "Today in one line",
   carefulWindows: "Careful windows",
   goodWindows: "Auspicious window",
   rahuKaal: "Rahu Kaal",

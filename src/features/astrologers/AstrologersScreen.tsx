@@ -217,12 +217,18 @@ export default function AstrologersScreen() {
             {onlineNow.length > 0 ? (
               <section aria-label={t("astrologers.onlineNow")}>
                 <SectionHeader>{t("astrologers.onlineNow")}</SectionHeader>
-                <div className="scroll-thin -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
-                  {onlineNow.map((a) => (
-                    <div key={a.id} className="w-[236px] shrink-0">
-                      <AstrologerCard a={a} compact onClick={() => openProfile(a)} />
-                    </div>
-                  ))}
+                <div className="relative -mx-4">
+                  <div className="scroll-thin flex gap-3 overflow-x-auto px-4 pb-1">
+                    {onlineNow.map((a) => (
+                      <div key={a.id} className="w-[236px] shrink-0">
+                        <AstrologerCard a={a} compact onClick={() => openProfile(a)} />
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent"
+                    aria-hidden
+                  />
                 </div>
               </section>
             ) : null}
@@ -230,12 +236,18 @@ export default function AstrologersScreen() {
             {soon.length > 0 ? (
               <section aria-label={t("astrologers.availableSoon")}>
                 <SectionHeader>{t("astrologers.availableSoon")}</SectionHeader>
-                <div className="scroll-thin -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
-                  {soon.map((a) => (
-                    <div key={a.id} className="w-[236px] shrink-0">
-                      <AstrologerCard a={a} compact onClick={() => openProfile(a)} />
-                    </div>
-                  ))}
+                <div className="relative -mx-4">
+                  <div className="scroll-thin flex gap-3 overflow-x-auto px-4 pb-1">
+                    {soon.map((a) => (
+                      <div key={a.id} className="w-[236px] shrink-0">
+                        <AstrologerCard a={a} compact onClick={() => openProfile(a)} />
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent"
+                    aria-hidden
+                  />
                 </div>
               </section>
             ) : null}

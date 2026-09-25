@@ -74,4 +74,53 @@ export const aiService = {
 
   /** placeholder for future contextual deep-links from other features */
   interpret: (topic?: string) => postWithSignal<{ ok: boolean }>("/api/ask/interpret", { topic }),
+
+  /**
+   * Fetch the spoken version of an assistant reading (binary audio/mpeg).
+   * Blob URLs are cached per message — replays don't refetch.
+   */
+  speak: async (messageId: string): Promise<string> => {
+    const cachedUrl = speakUrlCache.get(messageId);
+    if (cachedUrl) return cachedUrl;
+
+    let res: Response;
+    try {
+      res = await fetch("/api/ask/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ messageId }),
+      });
+    } catch {
+      throw new ApiError(0, "network", "You seem to be offline. Please check your connection and retry.");
+    }
+
+    if (!res.ok) {
+      let parsed: { message?: string; error?: string } | null = null;
+      try {
+        parsed = (await res.json()) as { message?: string; error?: string };
+      } catch {
+        parsed = null;
+      }
+      throw new ApiError(res.status, parsed?.error ?? "tts_failed", parsed?.message ?? "The voice service is unavailable right now. Please try again.");
+    }
+
+    const blob = await res.blob();
+    if (blob.size === 0) {
+      throw new ApiError(502, "tts_failed", "The voice service returned no audio. Please try again.");
+    }
+    const url = URL.createObjectURL(blob);
+    speakUrlCache.set(messageId, url);
+    if (speakUrlCache.size > 24) {
+      // drop the oldest cached url (and release its blob)
+      const oldest = speakUrlCache.keys().next().value;
+      if (oldest !== undefined) {
+        URL.revokeObjectURL(speakUrlCache.get(oldest) as string);
+        speakUrlCache.delete(oldest);
+      }
+    }
+    return url;
+  },
 };
+
+const speakUrlCache = new Map<string, string>();

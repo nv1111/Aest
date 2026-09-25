@@ -107,7 +107,7 @@ export function AstrologerCard({
         <div className="flex shrink-0 flex-col items-end justify-between self-stretch">
           <span className="whitespace-nowrap rounded-full bg-primary/8 px-2.5 py-1 text-[12.5px] font-semibold text-primary">
             {formatINR(a.pricePerMinute)}
-            <span className="font-normal text-primary/70">{t("common.perMinute")}</span>
+            <span className="font-medium text-primary/80">{t("common.perMinute")}</span>
           </span>
           {!compact ? (
             <div className="mt-1.5">

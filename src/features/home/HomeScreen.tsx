@@ -128,17 +128,24 @@ export function HomeScreen() {
             </span>
             <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5" />
           </button>
-          <div className="scroll-thin -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1">
-            {SUGGESTED_PROMPTS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => openInTab("ask", { id: "ask", params: { q: p } })}
-                className="press whitespace-nowrap rounded-full border bg-card px-3.5 py-2 text-[12.5px] font-medium text-foreground hover:bg-secondary"
-              >
-                {p}
-              </button>
-            ))}
+          <div className="relative -mx-4 mt-3">
+            <div className="scroll-thin flex gap-2 overflow-x-auto px-4 pb-1">
+              {SUGGESTED_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => openInTab("ask", { id: "ask", params: { q: p } })}
+                  className="press whitespace-nowrap rounded-full border bg-card px-3.5 py-2 text-[12.5px] font-medium text-foreground transition-colors hover:border-primary/30 hover:bg-secondary"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+            {/* fade hint — there is more to the right */}
+            <div
+              className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent"
+              aria-hidden
+            />
           </div>
         </section>
 
@@ -158,9 +165,27 @@ export function HomeScreen() {
             {t("home.today")}
           </SectionHeader>
           {home.isLoading || !home.data ? (
-            <Skeleton className="h-36 w-full rounded-2xl" />
+            <Skeleton className="h-52 w-full rounded-2xl" />
           ) : (
             <div className="rounded-2xl border bg-card p-4">
+              {/* bold key takeaway — the one line that matters today */}
+              {home.data.today.choghadiyaNow?.quality === "good" ? (
+                <p className="mb-1 border-b border-hairline/60 pb-3 text-[13px] font-semibold leading-snug text-foreground">
+                  <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-success align-middle" aria-hidden />
+                  {t("home.todayHighlightGood", {
+                    name: home.data.today.choghadiyaNow.name,
+                    time: home.data.today.choghadiyaNow.ends,
+                  })}
+                </p>
+              ) : (
+                <p className="mb-1 border-b border-hairline/60 pb-3 text-[13px] font-semibold leading-snug text-foreground">
+                  <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-warning align-middle" aria-hidden />
+                  {t("home.todayHighlightRahu", {
+                    start: home.data.today.rahuKaal.start,
+                    end: home.data.today.rahuKaal.end,
+                  })}
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-x-4">
                 <TodayItem icon={Sun} label="Tithi" value={home.data.today.tithi} />
                 <TodayItem
@@ -324,7 +349,7 @@ function TopBar({
     <header className="sticky top-0 z-30 bg-background/92 px-4 pb-3 pt-5 backdrop-blur-md">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[12.5px] text-muted-foreground">{greeting}</p>
+          <p className="text-[13px] font-medium text-foreground/75">{greeting}</p>
           <h1 className="truncate font-display text-[22px] font-semibold leading-tight tracking-tight">
             {name || "Welcome"}
           </h1>
@@ -359,13 +384,13 @@ function DayCard({ data }: { data: HomeAstrology }) {
         {data.insight.headline}
       </p>
       <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{data.insight.body}</p>
-      <div className="mt-4 flex flex-wrap gap-1.5">
+      <div className="mt-5 flex flex-wrap gap-2">
         {data.insight.factors.map((f) => (
           <span
             key={f.label}
-            className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-secondary-foreground"
+            className="rounded-full bg-secondary px-3 py-1.5 text-[11px] font-medium leading-none text-secondary-foreground"
           >
-            {f.label}: <span className="text-foreground">{f.value}</span>
+            {f.label}: <span className="font-semibold text-foreground">{f.value}</span>
           </span>
         ))}
       </div>
@@ -397,12 +422,12 @@ function TodayItem({
   note?: string;
 }) {
   return (
-    <div className="flex items-start gap-3 border-b border-hairline/60 py-3 last:border-0">
+    <div className="flex items-start gap-3 border-b border-hairline/60 py-3.5 last:border-0">
       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} />
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
-        <p className="mt-0.5 truncate text-[13.5px] font-medium text-foreground">{value}</p>
-        {note ? <p className="mt-0.5 text-[11.5px] text-muted-foreground/80">{note}</p> : null}
+        <p className="mt-1 truncate text-[13.5px] font-medium text-foreground">{value}</p>
+        {note ? <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground/80">{note}</p> : null}
       </div>
     </div>
   );

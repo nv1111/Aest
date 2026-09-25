@@ -98,3 +98,39 @@ Stage Summary:
 - Demo data honestly labeled everywhere (DemoDataBadge, demo OTP, demo payment notes, AI-simulated astrologer disclosure).
 - Known minor items for next phase: Kundli chart house text density (VLM nitpick), bold key Panchang takeaway, payment failure path is API-level only (hash ~1/8), no email auth (architecture-ready), i18n English only (architecture-ready), push notifications web-context note only.
 - To restart services after a sandbox reset: `(bun run dev &)` in /home/z/my-project and `(bun run dev &)` in mini-services/chat-service.
+
+---
+
+Task ID: 4
+Agent: main (Z.ai Code)
+Task: Round 2 — QA assessment, post-consultation review flow, TTS "Listen" on Ask readings, full styling polish pass
+
+Work Log:
+- Assessed project state: all services alive (3000/3003/81), dev.log clean. Walked the full app via agent-browser through the gateway (localhost:81): home, ask (LLM grounded answer), astrology hub, kundli, astrologers list/detail, consultation history/details, wallet, reports, profile — zero console errors.
+- VLM visual review of 8 screenshots → concrete findings list (cramped Your Day, weak greeting, no scroll indicators, wall-of-text answers, weak chips, Kundli grid misalignment + monotonous highlight cards, hub dead space, /min weight, outline CTA affordance). Confirmed feature gap: NO way for users to rate their consultations (Review model existed but was write-less).
+- FEATURE — Post-consultation review flow:
+  - prisma: Review += consultationId String? @unique + @@index([userId]); db:push (dev server restart required — in-memory Prisma client doesn't see new fields until restart; this caused a transient 500 on GET /api/consultations/[id] until restart).
+  - POST /api/reviews (new route): zod-validated {consultationId, rating 1-5, text?}; own+ended consultation only; one review per consultation (409 already_reviewed); authorName derived "First L." (privacy-safe fallback "Tara member"); isDemo false (genuine UGC); transactional astrologer aggregate update (incremental fold: (rating*count+new)/(count+1) — seeded platform totals preserved).
+  - GET /api/consultations/[id] now returns `review` (own review or null); consultationsService.get typed accordingly + submitReview() added.
+  - ConsultationDetailsScreen: ReviewSection — CTA card (star icon, 5 muted stars teaser) → bottom Sheet with radiogroup stars (44px targets), optional 500-char comment, Skip/Submit; after submit shows "You rated this consultation" card (stars + comment + date). Invalidates consultation + astrologer queries; toast thanks; trackEvent reading_rated.
+  - e2e verified: rate 5★ + comment on Ananya's consultation → aggregates 156→157 reviews → review visible on astrologer public profile as "Ananya"; error paths 401/404/422 curl-tested; cross-user 404.
+- FEATURE — TTS "Listen" on Ask readings:
+  - POST /api/ask/speak: own-conversation assistant messages only (not failed fallbacks); prepareForSpeech (strip markdown symbols) + sentence-boundary truncation at 1000 chars; z-ai-web-dev-sdk TTS voice "jam"; **response_format must be "wav" — mp3 is NOT served by the current TTS backend (error 1214)**; server LRU audio cache (24 entries, message content is immutable); returns binary audio/wav.
+  - aiService.speak(messageId) → blob URL with client-side cache (24 entries, revokes old URLs).
+  - AskScreen: shared Audio element (one voice at a time), speakToken guard for superseded loads, stop-on-unmount; Listen button (Headphones) → loading (Loader2 spin) → playing (stop square + animated soundbar keyframes in globals.css); toast on failure; trackEvent reading_listened.
+  - e2e verified: first generation 12s (cache cold), replay instant from client cache (no re-POST); stop works; 401/404/422 paths curl-tested.
+- STYLING POLISH (all browser-verified, VLM re-review: 7/8 previously-flagged issues FIXED, #8 improved after follow-up):
+  - Ask: answer line-height 1.7; HighlightedText bolds planets/houses/dasha/nakshatra/ascendant/transits via matchAll regex (react-hooks/immutability forbids lastIndex mutation — use matchAll); follow-up chips terracotta-tinted with hover; action bar gap/spacing; disclaimer left-border accent.
+  - Home: greeting 13px medium foreground/75; DayCard factor pills px-3 py-1.5 gap-2; Today section bold key takeaway line (success dot = favourable choghadiya / warning dot = Rahu Kaal window, i18n todayHighlightGood/todayHighlightRahu); TodayItem py-3.5 with mt-1 rhythm; suggested prompts wrapped with right-edge gradient fade hint.
+  - Kundli: overview grid grid-rows-2 gap-y-6 with consistent mt-1 baselines; first highlight card is the feature (border-primary/25 bg-primary/6), rest quiet; body 13px.
+  - NorthChart: corner houses (2,3,5,6,8,9,11,12) pair planets per row earlier (3+ planets → 2/row), font 11.5 in small houses, ROW_HEIGHT 17 — fixes text density in small triangles.
+  - Astrology hub: trust strip "Where these numbers come from" below the 6 cards (fills the fold, on-brand honesty); fragment wrapper needed (two siblings in ternary branch).
+  - Astrologers: horizontal carousels wrapped with gradient fade; profile /min 15px semibold; outline CTAs bg-secondary/50 fill; shared card /min font-medium.
+  - Panchang: simpleSummary promoted to prominent takeaway block (border-primary/25 bg-primary/6, "TODAY IN ONE LINE" label, 13.5px medium).
+  - i18n: +review keys (consultation.ts), +listen keys (ask.ts), +todayHighlight* (home.ts), +hubTrust* + panchangTakeaway (astrology.ts); analytics: reading_listened, reading_rated events added.
+- Process notes: dev server restart needed after prisma field additions; Edit tool MultiEdit is NOT atomic in practice (a failing mid-batch edit can leave earlier edits applied — verify state after failures); killed and restarted dev server as plain (cmd &) subshell.
+
+Stage Summary:
+- Round 2 COMPLETE: 2 new trust/simplicity features (post-consultation reviews, spoken readings) + comprehensive styling polish across 8 screens. lint clean, tsc clean (excluding pre-existing examples/skills), dev.log clean, all services running.
+- Known items: TTS first-generation latency (~10-12s cold, instant cached); TTS backend wav-only (documented in route); VLM noted minor items (small info-icon touch targets in Panchang angas cards, subtle active-tab indicator) — acceptable, low priority.
+- Suggested next phase: email auth + i18n Hindi (both architecture-ready), payment failure simulation in recharge UI, reports share-as-image, pre-warm TTS cache on first render of a reading.

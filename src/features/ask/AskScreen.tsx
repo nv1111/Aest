@@ -11,13 +11,16 @@ import {
   Calendar,
   ChevronRight,
   Copy,
+  Headphones,
   Heart,
   History,
   Hourglass,
+  Loader2,
   Mic,
   MoonStar,
   Share2,
   Sparkles,
+  Square,
   SquarePen,
   ThumbsDown,
   ThumbsUp,
@@ -111,6 +114,17 @@ function isAbortError(err: unknown): boolean {
   return err instanceof Error && err.name === "AbortError";
 }
 
+// ------------------------------------------------------------- audio playback
+// One audio element for the whole screen — only one reading speaks at a time.
+
+let sharedAudio: HTMLAudioElement | null = null;
+function getSharedAudio(): HTMLAudioElement {
+  if (!sharedAudio) sharedAudio = new Audio();
+  return sharedAudio;
+}
+
+export type SpeakState = { id: string; status: "loading" | "playing" } | null;
+
 // ------------------------------------------------------------------ screen
 
 /**
@@ -139,6 +153,7 @@ export default function AskScreen() {
   const [feedbackSent, setFeedbackSent] = useState<Record<string, 1 | -1>>({});
   const [historyOpen, setHistoryOpen] = useState(false);
   const [listening, setListening] = useState(false);
+  const [speakState, setSpeakState] = useState<SpeakState>(null);
 
   const pendingRef = useRef<PendingExchange | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -146,6 +161,7 @@ export default function AskScreen() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const autoSentRef = useRef(false);
+  const speakTokenRef = useRef(0);
 
   const hasProfile = !!me.data?.primaryProfile;
 
@@ -276,6 +292,58 @@ export default function AskScreen() {
     } catch {
       toast.error(t("common.errorGeneric"));
     }
+  }, []);
+
+  const toggleListen = useCallback(
+    async (messageId: string) => {
+      const audio = getSharedAudio();
+
+      // tap on the speaking/loading message → stop
+      if (speakState?.id === messageId) {
+        speakTokenRef.current += 1; // invalidate in-flight loads
+        audio.pause();
+        audio.removeAttribute("src"); // release the decoder
+        setSpeakState(null);
+        return;
+      }
+
+      // another message is speaking → switch
+      speakTokenRef.current += 1;
+      audio.pause();
+      const token = speakTokenRef.current;
+      setSpeakState({ id: messageId, status: "loading" });
+      try {
+        const url = await aiService.speak(messageId);
+        if (token !== speakTokenRef.current) return; // superseded meanwhile
+        audio.src = url;
+        audio.onended = () => setSpeakState((s) => (s?.id === messageId ? null : s));
+        audio.onerror = () => setSpeakState((s) => (s?.id === messageId ? null : s));
+        await audio.play();
+        if (token !== speakTokenRef.current) {
+          audio.pause();
+          return;
+        }
+        setSpeakState({ id: messageId, status: "playing" });
+        trackEvent("reading_listened");
+      } catch (err) {
+        if (token !== speakTokenRef.current) return;
+        setSpeakState(null);
+        if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) return;
+        toast.error(errorMessage(err));
+      }
+    },
+    [speakState]
+  );
+
+  // stop the voice when leaving the screen
+  useEffect(() => {
+    return () => {
+      speakTokenRef.current += 1;
+      const audio = getSharedAudio();
+      audio.pause();
+      audio.onended = null;
+      audio.onerror = null;
+    };
   }, []);
 
   const shareAnswer = useCallback(async (content: string) => {
@@ -457,12 +525,14 @@ export default function AskScreen() {
                   expanded={!!expanded[m.id]}
                   feedbackValue={feedbackSent[m.id]}
                   disabled={pending !== null}
+                  speakState={speakState?.id === m.id ? speakState.status : "idle"}
                   retryQuestion={
                     m.failed && messages[i - 1]?.role === "user" ? messages[i - 1].content : undefined
                   }
                   onToggleFactors={toggleFactors}
                   onAsk={(q) => void send(q)}
                   onCopy={(c) => void copyAnswer(c)}
+                  onListen={(id) => void toggleListen(id)}
                   onShare={(c) => void shareAnswer(c)}
                   onFeedback={(id, v) => void sendFeedback(id, v)}
                 />
@@ -600,11 +670,42 @@ function EmptyAsk({ busy, onAsk }: { busy: boolean; onAsk: (question: string) =>
         ))}
       </div>
 
-      <TrustNote variant="info" className="mt-7 w-full max-w-[380px]">
+      <TrustNote variant="info" className="mt-6 w-full max-w-[380px] border-l-2 border-l-primary/40 bg-secondary/60">
         {t("ask.disclaimer")}
       </TrustNote>
     </div>
   );
+}
+
+// ------------------------------------------------------------ term highlighting
+
+/** Astrological key terms that get quiet emphasis inside readings. */
+const TERM_RE = new RegExp(
+  [
+    "\\b(Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)\\b", // planets
+    "\\b([1-9]|1[0-2])(st|nd|rd|th)\\s+(house|House)\\b", // houses
+    "\\bmahadasha\\b|\\bantardasha\\b|\\bdasha\\b", // life phases
+    "\\bnakshatra\\b|\\bascendant\\b|\\btransit(s)?\\b", // chart vocabulary
+  ].join("|"),
+  "g"
+);
+
+/** Renders reading text with key astrological terms quietly bolded. */
+function HighlightedText({ text }: { text: string }) {
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  for (const match of text.matchAll(TERM_RE)) {
+    const index = match.index ?? 0;
+    if (index > last) parts.push(text.slice(last, index));
+    parts.push(
+      <strong key={index} className="font-semibold text-foreground">
+        {match[0]}
+      </strong>
+    );
+    last = index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <>{parts}</>;
 }
 
 function ConversationSkeleton() {
@@ -691,10 +792,12 @@ function AssistantCard({
   expanded,
   feedbackValue,
   disabled,
+  speakState,
   retryQuestion,
   onToggleFactors,
   onAsk,
   onCopy,
+  onListen,
   onShare,
   onFeedback,
 }: {
@@ -702,10 +805,12 @@ function AssistantCard({
   expanded: boolean;
   feedbackValue: 1 | -1 | undefined;
   disabled: boolean;
+  speakState: "idle" | "loading" | "playing";
   retryQuestion: string | undefined;
   onToggleFactors: (id: string) => void;
   onAsk: (question: string) => void;
   onCopy: (content: string) => void;
+  onListen: (messageId: string) => void;
   onShare: (content: string) => void;
   onFeedback: (messageId: string, value: 1 | -1) => void;
 }) {
@@ -730,7 +835,9 @@ function AssistantCard({
           </button>
         ) : null}
 
-        <p className="mt-2 whitespace-pre-wrap text-[14px] leading-relaxed text-foreground">{m.content}</p>
+        <p className="mt-2 whitespace-pre-wrap text-[14px] leading-[1.7] text-foreground">
+          <HighlightedText text={m.content} />
+        </p>
 
         {/* factors panel */}
         <AnimatePresence initial={false}>
@@ -779,7 +886,7 @@ function AssistantCard({
                   type="button"
                   disabled={disabled}
                   onClick={() => onAsk(q)}
-                  className="press rounded-full border border-hairline bg-card px-3.5 py-2 text-[12px] font-medium text-foreground hover:bg-secondary disabled:opacity-50"
+                  className="press rounded-full border border-primary/25 bg-primary/5 px-3.5 py-2 text-[12px] font-medium text-foreground/90 transition-colors hover:border-primary/40 hover:bg-primary/10 disabled:opacity-50"
                 >
                   {q}
                 </button>
@@ -789,7 +896,34 @@ function AssistantCard({
         ) : null}
 
         {/* actions */}
-        <div className="mt-3 flex items-center gap-0.5 border-t border-hairline/60 pt-2">
+        <div className="mt-3.5 flex items-center gap-1 border-t border-hairline/60 pt-2.5">
+          {!m.failed ? (
+            <button
+              type="button"
+              onClick={() => onListen(m.id)}
+              aria-label={speakState === "playing" ? t("ask.stopListen") : speakState === "loading" ? t("ask.listenLoading") : t("ask.listen")}
+              title={speakState === "playing" ? t("ask.stopListen") : t("ask.listen")}
+              aria-pressed={speakState === "playing"}
+              className={cn(
+                "press flex h-10 w-10 items-center justify-center rounded-full transition-colors",
+                speakState !== "idle" ? "bg-accent text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              )}
+            >
+              {speakState === "loading" ? (
+                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />
+              ) : speakState === "playing" ? (
+                <span className="relative flex h-4 w-4 items-center justify-center">
+                  <Square className="h-3.5 w-3.5 fill-primary" strokeWidth={1.75} />
+                  <span className="absolute -right-1.5 flex h-2 items-end gap-[2px]" aria-hidden>
+                    <span className="w-[2.5px] animate-[soundbar_0.9s_ease-in-out_infinite] rounded-full bg-primary" style={{ height: "6px", animationDelay: "0ms" }} />
+                    <span className="w-[2.5px] animate-[soundbar_0.9s_ease-in-out_infinite] rounded-full bg-primary" style={{ height: "9px", animationDelay: "150ms" }} />
+                  </span>
+                </span>
+              ) : (
+                <Headphones className="h-4 w-4" strokeWidth={1.75} />
+              )}
+            </button>
+          ) : null}
           <ActionIconButton icon={Copy} label={t("ask.copy")} onClick={() => onCopy(m.content)} />
           <ActionIconButton icon={Share2} label={t("ask.share")} onClick={() => onShare(m.content)} />
           <span className="mx-1 h-4 w-px bg-hairline" aria-hidden="true" />

@@ -81,7 +81,7 @@ export default function KundliScreen() {
               transition={{ duration: 0.25, ease: "easeOut" }}
               className="tara-hero rounded-3xl border bg-card p-5"
             >
-              <div className="grid grid-cols-2 gap-x-4 gap-y-5">
+              <div className="grid grid-cols-2 grid-rows-2 gap-x-4 gap-y-6">
                 <Placement
                   icon={Sunrise}
                   label={t("astrology.lagna")}
@@ -123,7 +123,11 @@ export default function KundliScreen() {
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.22, delay: i * 0.04, ease: "easeOut" }}
-                    className="rounded-2xl border bg-card p-4"
+                    className={cn(
+                      "rounded-2xl border p-4",
+                      // the first highlight is the feature — the rest stay quiet
+                      i === 0 ? "border-primary/25 bg-primary/[0.06]" : "bg-card"
+                    )}
                   >
                     <div className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4 shrink-0 text-primary" strokeWidth={1.75} />
@@ -131,7 +135,7 @@ export default function KundliScreen() {
                         {h.title}
                       </p>
                     </div>
-                    <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">{h.body}</p>
+                    <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{h.body}</p>
                   </motion.div>
                 ))}
               </div>
@@ -223,10 +227,10 @@ function Placement({
       </span>
       <div className="min-w-0">
         <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-        <p className="mt-0.5 truncate font-display text-[16px] font-semibold leading-tight text-foreground">
+        <p className="mt-1 truncate font-display text-[16px] font-semibold leading-tight text-foreground">
           {value}
         </p>
-        <p className="mt-0.5 truncate text-[12px] text-muted-foreground">{sub}</p>
+        <p className="mt-1 truncate text-[12px] text-muted-foreground">{sub}</p>
       </div>
     </div>
   );

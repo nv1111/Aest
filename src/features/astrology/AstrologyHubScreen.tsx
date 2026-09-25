@@ -58,7 +58,8 @@ export default function AstrologyHubScreen() {
             onAction={() => push({ id: "profile.birthEdit", params: { mode: "create" } })}
           />
         ) : (
-          <nav aria-label={t("astrology.title")} className="grid grid-cols-2 gap-3">
+          <>
+            <nav aria-label={t("astrology.title")} className="grid grid-cols-2 gap-3">
             {MODULES.map((m, i) => (
               <motion.button
                 key={m.id}
@@ -83,6 +84,19 @@ export default function AstrologyHubScreen() {
               </motion.button>
             ))}
           </nav>
+
+          {/* quiet trust strip — fills the fold with meaning, not decoration */}
+          <section
+            aria-label={t("astrology.hubTrustTitle")}
+            className="mt-4 flex items-start gap-3 rounded-2xl border border-hairline bg-secondary/40 px-4 py-3.5"
+          >
+            <MoonStar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.75} aria-hidden />
+            <div className="min-w-0">
+              <p className="text-[12.5px] font-semibold text-foreground">{t("astrology.hubTrustTitle")}</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{t("astrology.hubTrustBody")}</p>
+            </div>
+          </section>
+          </>
         )}
       </div>
     </div>

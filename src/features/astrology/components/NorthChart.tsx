@@ -54,7 +54,10 @@ const HOUSE_LABELS: Record<number, [number, number, number, number, number, numb
   12: [358, 32, 250, 32, 295, 62],
 };
 
-const ROW_HEIGHT = 16;
+const ROW_HEIGHT = 17;
+
+/** Corner triangles have far less room than the four big diamond houses. */
+const SMALL_HOUSES = new Set([2, 3, 5, 6, 8, 9, 11, 12]);
 
 export function NorthChart({
   houses,
@@ -130,13 +133,14 @@ export function NorthChart({
           const planets = house?.planets ?? [];
           const signNumber = house ? SIGNS.indexOf(house.sign) + 1 : null;
 
-          // planet rows: 1–3 planets stack vertically, 4+ go two per row
-          const perRow = planets.length <= 3 ? 1 : 2;
+          // planet rows: big diamond houses stack up to 3 solo then pair;
+          // corner triangles pair early — stacked rows overflow the small region
+          const perRow = SMALL_HOUSES.has(n) ? (planets.length <= 2 ? 1 : 2) : planets.length <= 3 ? 1 : 2;
           const rows: PlanetName[][] = [];
           for (let i = 0; i < planets.length; i += perRow) {
             rows.push(planets.slice(i, i + perRow));
           }
-          const fontSize = planets.length > 6 ? 10.5 : 12.5;
+          const fontSize = planets.length > 6 ? 10.5 : SMALL_HOUSES.has(n) ? 11.5 : 12.5;
 
           return (
             <g key={`label-${n}`}>
