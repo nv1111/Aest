@@ -17,6 +17,7 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { DemoDataBadge } from "@/components/shared/DemoDataBadge";
 import { AstrologerCard } from "@/components/shared/AstrologerCard";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { contentWidthClass } from "@/components/shared/content-width";
 import { cn } from "@/lib/utils";
 
 const SUGGESTED_PROMPTS = [
@@ -95,9 +96,14 @@ export function HomeScreen() {
     <div className="scroll-thin h-full overflow-y-auto">
       <TopBar greeting={greeting} name={firstName} unread={unread} onBell={() => push({ id: "notifications.center" })} />
 
-      <div className="space-y-7 px-4 pb-28">
+      <div
+        className={cn(
+          "mx-auto grid w-full gap-7 px-4 pb-28 md:grid-cols-2 md:px-6 md:pb-12 xl:grid-cols-3",
+          contentWidthClass.wide
+        )}
+      >
         {/* ------------------------------------------------ YOUR DAY */}
-        <section aria-label={t("home.yourDay")}>
+        <section aria-label={t("home.yourDay")} className="xl:col-span-2">
           <SectionHeader action={<DemoDataBadge />}>{t("home.yourDay")}</SectionHeader>
           {home.isLoading || !home.data ? (
             <Skeleton className="h-44 w-full rounded-3xl" />
@@ -128,8 +134,8 @@ export function HomeScreen() {
             </span>
             <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-0.5" />
           </button>
-          <div className="relative -mx-4 mt-3">
-            <div className="scroll-thin flex gap-2 overflow-x-auto px-4 pb-1">
+          <div className="relative -mx-4 mt-3 md:mx-0">
+            <div className="scroll-thin flex gap-2 overflow-x-auto px-4 pb-1 md:flex-wrap md:overflow-visible md:px-0">
               {SUGGESTED_PROMPTS.map((p) => (
                 <button
                   key={p}
@@ -143,7 +149,7 @@ export function HomeScreen() {
             </div>
             {/* fade hint — there is more to the right */}
             <div
-              className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent"
+              className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent md:hidden"
               aria-hidden
             />
           </div>
@@ -263,7 +269,7 @@ export function HomeScreen() {
         </section>
 
         {/* ------------------------------------------------ ASTROLOGERS */}
-        <section aria-label={t("home.astrologersOnline")}>
+        <section aria-label={t("home.astrologersOnline")} className="md:col-span-2 xl:col-span-3">
           <SectionHeader
             action={
               <button
@@ -278,7 +284,7 @@ export function HomeScreen() {
             {t("home.astrologersOnline")}
           </SectionHeader>
           {astrologers.isLoading ? (
-            <div className="space-y-2.5">
+            <div className="grid gap-2.5 md:grid-cols-2">
               <Skeleton className="h-20 w-full rounded-2xl" />
               <Skeleton className="h-20 w-full rounded-2xl" />
             </div>
@@ -287,7 +293,7 @@ export function HomeScreen() {
               Astrologers will appear here when they come online.
             </p>
           ) : (
-            <div className="space-y-2.5">
+            <div className="grid gap-2.5 md:grid-cols-2">
               {online.slice(0, 3).map((a) => (
                 <AstrologerCard
                   key={a.id}
@@ -346,8 +352,8 @@ function TopBar({
   onBell: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-30 bg-background/92 px-4 pb-3 pt-5 backdrop-blur-md">
-      <div className="flex items-center justify-between gap-3">
+    <header className="sticky top-0 z-30 bg-background/92 px-4 pb-3 pt-5 backdrop-blur-md md:px-6">
+      <div className={cn("mx-auto flex w-full items-center justify-between gap-3", contentWidthClass.wide)}>
         <div className="min-w-0">
           <p className="text-[13px] font-medium text-foreground/75">{greeting}</p>
           <h1 className="truncate font-display text-[22px] font-semibold leading-tight tracking-tight">

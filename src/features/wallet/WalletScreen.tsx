@@ -32,8 +32,14 @@ export function WalletScreen() {
   const balance = me.data?.wallet.balance ?? 0;
 
   return (
-    <ScreenScaffold title={t("wallet.title")}>
-      <div className="space-y-6 pt-1">
+    <ScreenScaffold title={t("wallet.title")} width="wide">
+      {/*
+       * Mobile: stacked (balance → recent → trust note).
+       * lg+: natural two-column dashboard — balance card + trust note aside on
+       * the left (340px), recent transactions as the main column on the right.
+       * Auto grid placement keeps DOM order identical to the mobile stack.
+       */}
+      <div className="space-y-6 pt-1 lg:grid lg:grid-cols-[340px_1fr] lg:items-start lg:gap-x-8 lg:gap-y-6 lg:space-y-0">
         {/* balance card */}
         {me.isLoading ? (
           <Skeleton className="h-40 w-full rounded-3xl" />

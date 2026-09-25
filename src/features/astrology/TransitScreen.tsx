@@ -65,6 +65,7 @@ export default function TransitScreen() {
       title={t("astrology.transit")}
       subtitle={asOf ? t("astrology.asOf", { date: asOf }) : t("astrology.transitSubtitle")}
       right={isDemo ? <DemoDataBadge /> : undefined}
+      width="wide"
     >
       {transit.isLoading || !profileId ? (
         <PageSkeleton variant="cards" />
@@ -83,7 +84,7 @@ export default function TransitScreen() {
             <p className="mb-3 px-1 text-[13px] leading-relaxed text-muted-foreground">
               {t("astrology.transitTitle")}
             </p>
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 md:grid md:grid-cols-2 md:items-start md:gap-2.5 md:space-y-0">
               {SLOW.map((name, i) => {
                 const e = byPlanet.get(name);
                 if (!e) return null;

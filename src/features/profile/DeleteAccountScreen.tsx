@@ -55,7 +55,7 @@ export function DeleteAccountScreen() {
   });
 
   return (
-    <ScreenScaffold title={t("profile.deleteAccount")}>
+    <ScreenScaffold title={t("profile.deleteAccount")} width="narrow">
       <div className="space-y-6 pt-1">
         <motion.section
           initial={{ opacity: 0, y: 8 }}
@@ -148,7 +148,7 @@ export function DeleteAccountScreen() {
                   {t("profile.deleteContinue")}
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="max-w-[360px] rounded-3xl">
+              <AlertDialogContent className="max-w-[360px] rounded-3xl sm:max-w-md">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="font-display">{t("profile.deleteAccountTitle")}</AlertDialogTitle>
                   <AlertDialogDescription>{t("profile.deleteAccountBody")}</AlertDialogDescription>

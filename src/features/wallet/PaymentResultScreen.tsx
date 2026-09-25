@@ -63,7 +63,7 @@ export function PaymentResultScreen() {
 
   if (query.isLoading) {
     return (
-      <div className="h-full px-4 pt-2">
+      <div className="h-full px-4 pt-2 md:mx-auto md:max-w-xl">
         <PageSkeleton variant="cards" />
       </div>
     );
@@ -106,7 +106,7 @@ function Centered({ children }: { children: React.ReactNode }) {
 
 function ProcessingView({ methodLabel: label }: { methodLabel: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center px-8 pb-16 text-center">
+    <div className="flex h-full flex-col items-center justify-center px-8 pb-16 text-center md:mx-auto md:max-w-xl">
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -128,7 +128,7 @@ function ProcessingView({ methodLabel: label }: { methodLabel: string }) {
 function SuccessView({ amount, balance }: { amount: number; balance?: number }) {
   const backToWallet = useBackToWallet();
   return (
-    <div className="flex h-full flex-col items-center justify-center px-8 pb-16 text-center">
+    <div className="flex h-full flex-col items-center justify-center px-8 pb-16 text-center md:mx-auto md:max-w-xl">
       <motion.div
         initial={{ scale: 0.6, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -179,7 +179,7 @@ function FailedView({
   });
 
   return (
-    <div className="flex h-full flex-col items-center justify-center px-8 pb-16 text-center">
+    <div className="flex h-full flex-col items-center justify-center px-8 pb-16 text-center md:mx-auto md:max-w-xl">
       <motion.div
         initial={{ scale: 0.85, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}

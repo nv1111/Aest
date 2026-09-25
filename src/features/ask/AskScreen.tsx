@@ -474,16 +474,18 @@ export default function AskScreen() {
   return (
     <ScreenScaffold bare>
       {/* -------------------------------------------------- header */}
-      <header className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2.5 pt-4">
-        <div className="min-w-0">
-          <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("nav.ask")}</p>
-          <h1 className="truncate font-display text-[19px] font-semibold leading-tight text-foreground">
-            {activeConversation?.title ?? t("ask.title")}
-          </h1>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <HeaderIconButton icon={SquarePen} label={t("ask.newChatAction")} onClick={startNew} />
-          <HeaderIconButton icon={History} label={t("ask.history")} onClick={() => setHistoryOpen(true)} />
+      <header className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2.5 pt-4 md:px-6">
+        <div className="mx-auto flex w-full items-center justify-between gap-2 md:max-w-xl lg:max-w-[760px]">
+          <div className="min-w-0">
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("nav.ask")}</p>
+            <h1 className="truncate font-display text-[19px] font-semibold leading-tight text-foreground">
+              {activeConversation?.title ?? t("ask.title")}
+            </h1>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <HeaderIconButton icon={SquarePen} label={t("ask.newChatAction")} onClick={startNew} />
+            <HeaderIconButton icon={History} label={t("ask.history")} onClick={() => setHistoryOpen(true)} />
+          </div>
         </div>
       </header>
 
@@ -493,56 +495,59 @@ export default function AskScreen() {
         role="log"
         aria-live="polite"
         aria-label={t("ask.title")}
-        className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6"
+        className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 md:px-6"
       >
-        {noProfile ? (
-          <EmptyState
-            icon={MoonStar}
-            title={t("ask.needProfileTitle")}
-            body={t("ask.needProfile")}
-            actionLabel={t("ask.needProfileCta")}
-            onAction={() => push({ id: "profile.birthEdit", params: { mode: "create" } })}
-          />
-        ) : messagesLoading ? (
-          <ConversationSkeleton />
-        ) : messagesError ? (
-          <ErrorState
-            title={t("ask.errorTitle")}
-            body={errorMessage(messagesQuery.error)}
-            onRetry={() => void messagesQuery.refetch()}
-          />
-        ) : showEmpty ? (
-          <EmptyAsk busy={pending !== null} onAsk={(q) => void send(q)} />
-        ) : (
-          <div className="space-y-4">
-            {messages.map((m, i) =>
-              m.role === "user" ? (
-                <UserBubble key={m.id} content={m.content} />
-              ) : (
-                <AssistantCard
-                  key={m.id}
-                  m={m}
-                  expanded={!!expanded[m.id]}
-                  feedbackValue={feedbackSent[m.id]}
-                  disabled={pending !== null}
-                  speakState={speakState?.id === m.id ? speakState.status : "idle"}
-                  retryQuestion={
-                    m.failed && messages[i - 1]?.role === "user" ? messages[i - 1].content : undefined
-                  }
-                  onToggleFactors={toggleFactors}
-                  onAsk={(q) => void send(q)}
-                  onCopy={(c) => void copyAnswer(c)}
-                  onListen={(id) => void toggleListen(id)}
-                  onShare={(c) => void shareAnswer(c)}
-                  onFeedback={(id, v) => void sendFeedback(id, v)}
-                />
-              )
-            )}
-            {pending ? (
-              <PendingView pending={pending} onStop={stopThinking} onRetry={retryPending} />
-            ) : null}
-          </div>
-        )}
+        {/* centered chat column (chat token) — messages, empty state, errors */}
+        <div className="mx-auto h-full w-full md:max-w-xl lg:max-w-[760px]">
+          {noProfile ? (
+            <EmptyState
+              icon={MoonStar}
+              title={t("ask.needProfileTitle")}
+              body={t("ask.needProfile")}
+              actionLabel={t("ask.needProfileCta")}
+              onAction={() => push({ id: "profile.birthEdit", params: { mode: "create" } })}
+            />
+          ) : messagesLoading ? (
+            <ConversationSkeleton />
+          ) : messagesError ? (
+            <ErrorState
+              title={t("ask.errorTitle")}
+              body={errorMessage(messagesQuery.error)}
+              onRetry={() => void messagesQuery.refetch()}
+            />
+          ) : showEmpty ? (
+            <EmptyAsk busy={pending !== null} onAsk={(q) => void send(q)} />
+          ) : (
+            <div className="space-y-4">
+              {messages.map((m, i) =>
+                m.role === "user" ? (
+                  <UserBubble key={m.id} content={m.content} />
+                ) : (
+                  <AssistantCard
+                    key={m.id}
+                    m={m}
+                    expanded={!!expanded[m.id]}
+                    feedbackValue={feedbackSent[m.id]}
+                    disabled={pending !== null}
+                    speakState={speakState?.id === m.id ? speakState.status : "idle"}
+                    retryQuestion={
+                      m.failed && messages[i - 1]?.role === "user" ? messages[i - 1].content : undefined
+                    }
+                    onToggleFactors={toggleFactors}
+                    onAsk={(q) => void send(q)}
+                    onCopy={(c) => void copyAnswer(c)}
+                    onListen={(id) => void toggleListen(id)}
+                    onShare={(c) => void shareAnswer(c)}
+                    onFeedback={(id, v) => void sendFeedback(id, v)}
+                  />
+                )
+              )}
+              {pending ? (
+                <PendingView pending={pending} onStop={stopThinking} onRetry={retryPending} />
+              ) : null}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* -------------------------------------------------- talk to an astrologer */}
@@ -550,7 +555,7 @@ export default function AskScreen() {
         <button
           type="button"
           onClick={() => openInTab("astrologers", { id: "astrologers.list" })}
-          className="press mx-3 mb-1.5 flex shrink-0 items-center gap-3 rounded-2xl border border-dashed border-hairline bg-secondary/50 p-3 text-left hover:bg-secondary"
+          className="press mx-3 mb-1.5 flex shrink-0 items-center gap-3 rounded-2xl border border-dashed border-hairline bg-secondary/50 p-3 text-left hover:bg-secondary md:mx-auto md:w-full md:max-w-xl lg:max-w-[760px]"
         >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card text-muted-foreground">
             <Users className="h-5 w-5" strokeWidth={1.75} />
@@ -565,46 +570,49 @@ export default function AskScreen() {
 
       {/* -------------------------------------------------- composer */}
       {hasProfile ? (
-        <div className="mb-[calc(88px+env(safe-area-inset-bottom))] shrink-0 border-t border-hairline bg-background px-3 pb-2 pt-2.5">
-          <div
-            className={cn(
-              "flex items-end gap-1.5 rounded-3xl border border-hairline bg-card px-1.5 py-1.5",
-              listening ? "border-primary/50 ring-2 ring-primary/15" : "focus-within:border-primary/40"
-            )}
-          >
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={input}
-              maxLength={MAX_MESSAGE_LENGTH}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={listening ? t("ask.listening") : t("ask.inputPlaceholder")}
-              aria-label={t("ask.inputPlaceholder")}
-              className="scroll-thin max-h-[120px] min-h-11 w-full flex-1 resize-none bg-transparent px-2.5 py-2.5 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={toggleMic}
-              aria-label={t("ask.voiceLabel")}
+        <div className="mb-[calc(88px+env(safe-area-inset-bottom))] shrink-0 border-t border-hairline bg-background px-3 pb-2 pt-2.5 md:mb-0 md:px-6">
+          {/* centered chat column — composer aligns with the conversation above */}
+          <div className="mx-auto w-full md:max-w-xl lg:max-w-[760px]">
+            <div
               className={cn(
-                "press flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors",
-                listening
-                  ? "bg-accent text-primary"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                "flex items-end gap-1.5 rounded-3xl border border-hairline bg-card px-1.5 py-1.5",
+                listening ? "border-primary/50 ring-2 ring-primary/15" : "focus-within:border-primary/40"
               )}
             >
-              <Mic className="h-5 w-5" strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              onClick={() => void send(input)}
-              disabled={!canSend}
-              aria-label={t("ask.send")}
-              className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm shadow-primary/20 transition-opacity disabled:opacity-35"
-            >
-              <ArrowUp className="h-5 w-5" strokeWidth={2.25} />
-            </button>
+              <textarea
+                ref={inputRef}
+                rows={1}
+                value={input}
+                maxLength={MAX_MESSAGE_LENGTH}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={listening ? t("ask.listening") : t("ask.inputPlaceholder")}
+                aria-label={t("ask.inputPlaceholder")}
+                className="scroll-thin max-h-[120px] min-h-11 w-full flex-1 resize-none bg-transparent px-2.5 py-2.5 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={toggleMic}
+                aria-label={t("ask.voiceLabel")}
+                className={cn(
+                  "press flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors",
+                  listening
+                    ? "bg-accent text-primary"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <Mic className="h-5 w-5" strokeWidth={1.75} />
+              </button>
+              <button
+                type="button"
+                onClick={() => void send(input)}
+                disabled={!canSend}
+                aria-label={t("ask.send")}
+                className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm shadow-primary/20 transition-opacity disabled:opacity-35"
+              >
+                <ArrowUp className="h-5 w-5" strokeWidth={2.25} />
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -647,30 +655,34 @@ function EmptyAsk({ busy, onAsk }: { busy: boolean; onAsk: (question: string) =>
       <h2 className="mt-4 font-display text-[26px] font-semibold leading-tight tracking-tight text-foreground">
         {t("ask.emptyTitle")}
       </h2>
-      <p className="mt-2 max-w-[300px] text-[13.5px] leading-relaxed text-muted-foreground">{t("ask.emptyBody")}</p>
+      <p className="mt-2 max-w-[300px] text-[13.5px] leading-relaxed text-muted-foreground md:max-w-[420px]">
+        {t("ask.emptyBody")}
+      </p>
 
-      <div className="mt-7 w-full max-w-[380px] space-y-2">
+      <div className="mt-7 w-full max-w-[380px] space-y-2 md:max-w-[560px]">
         <p className="px-1 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           {t("ask.suggested")}
         </p>
-        {SUGGESTIONS.map(({ icon: Icon, label }) => (
-          <button
-            key={label}
-            type="button"
-            disabled={busy}
-            onClick={() => onAsk(label)}
-            className="press flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3.5 text-left hover:bg-secondary disabled:opacity-50"
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-muted-foreground">
-              <Icon className="h-4.5 w-4.5" strokeWidth={1.75} />
-            </span>
-            <span className="min-w-0 flex-1 text-[13.5px] font-medium leading-snug text-foreground">{label}</span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </button>
-        ))}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          {SUGGESTIONS.map(({ icon: Icon, label }) => (
+            <button
+              key={label}
+              type="button"
+              disabled={busy}
+              onClick={() => onAsk(label)}
+              className="press flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3.5 text-left hover:bg-secondary disabled:opacity-50"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-muted-foreground">
+                <Icon className="h-4.5 w-4.5" strokeWidth={1.75} />
+              </span>
+              <span className="min-w-0 flex-1 text-[13.5px] font-medium leading-snug text-foreground">{label}</span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          ))}
+        </div>
       </div>
 
-      <TrustNote variant="info" className="mt-6 w-full max-w-[380px] border-l-2 border-l-primary/40 bg-secondary/60">
+      <TrustNote variant="info" className="mt-6 w-full max-w-[380px] border-l-2 border-l-primary/40 bg-secondary/60 md:max-w-[560px]">
         {t("ask.disclaimer")}
       </TrustNote>
     </div>

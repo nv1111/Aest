@@ -56,7 +56,7 @@ export function SupportScreen() {
 
   if (ticketRef) {
     return (
-      <ScreenScaffold title={t("profile.support")}>
+      <ScreenScaffold title={t("profile.support")} width="narrow">
         <div className="flex flex-col items-center px-6 pt-20 text-center">
           <motion.div
             initial={{ scale: 0.7, opacity: 0 }}
@@ -84,7 +84,7 @@ export function SupportScreen() {
   }
 
   return (
-    <ScreenScaffold title={t("profile.supportNew")}>
+    <ScreenScaffold title={t("profile.supportNew")} width="narrow">
       <div className="space-y-5 pt-1">
         <div>
           <label htmlFor="support-category" className="mb-2 block text-[13px] font-medium text-foreground">

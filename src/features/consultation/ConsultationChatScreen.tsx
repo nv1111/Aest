@@ -310,7 +310,7 @@ export default function ConsultationChatScreen() {
     <ScreenScaffold bare>
       {/* ------------------------------------------------------------ header */}
       <header className="shrink-0 border-b bg-background/95 backdrop-blur-md">
-        <div className="flex items-center gap-2 px-3 pt-2.5 pb-2">
+        <div className="mx-auto flex w-full items-center gap-2 px-3 pt-2.5 pb-2 md:max-w-xl md:px-6 lg:max-w-[760px]">
           <button
             type="button"
             onClick={handleBack}
@@ -367,7 +367,7 @@ export default function ConsultationChatScreen() {
 
         {/* -------------------------------------------------- billing meter */}
         <div className="border-t border-warning/30 bg-warning/10 px-4 py-2.5" aria-live="off">
-          <div className="flex items-center justify-between gap-3 text-[12.5px]">
+          <div className="mx-auto flex w-full items-center justify-between gap-3 text-[12.5px] md:max-w-xl md:px-6 lg:max-w-[760px]">
             <span className="text-muted-foreground">
               {t("consultation.runningDuration")}{" "}
               <span className="font-semibold tabular-nums text-foreground">{mmss(elapsedSec)}</span>
@@ -384,7 +384,7 @@ export default function ConsultationChatScreen() {
               {formatINR(balance)}
             </span>
           </div>
-          <p className="mt-0.5 text-[10.5px] leading-snug text-muted-foreground">
+          <p className="mx-auto mt-0.5 w-full text-[10.5px] leading-snug text-muted-foreground md:max-w-xl md:px-6 lg:max-w-[760px]">
             {isActive
               ? t("consultation.approxNote")
               : `${t("consultation.ended")} — ${formatINR(consultation.totalAmount ?? 0)}`}
@@ -392,7 +392,7 @@ export default function ConsultationChatScreen() {
         </div>
 
         {/* --------------------------------------------- connection / ended */}
-        <div className="flex items-center justify-between gap-2 px-4 py-1.5 text-[11.5px]">
+        <div className="mx-auto flex w-full items-center justify-between gap-2 px-4 py-1.5 text-[11.5px] md:max-w-xl md:px-6 lg:max-w-[760px]">
           <ConnectionChip status={isActive ? status : "offline"} />
           {!isActive ? (
             <button
@@ -418,6 +418,7 @@ export default function ConsultationChatScreen() {
         role="log"
         aria-label={t("consultation.chatTitle")}
       >
+        <div className="mx-auto w-full md:max-w-xl md:px-6 lg:max-w-[760px]">
         {!isActive ? (
           <div className="mx-auto mb-3 max-w-[85%] rounded-xl bg-secondary px-3 py-2 text-center text-[12px] text-secondary-foreground">
             {t("consultation.endedBanner")}
@@ -431,6 +432,7 @@ export default function ConsultationChatScreen() {
             <PendingRow key={p.localId} p={p} onRetry={() => void retryMessage(p)} />
           ))}
           {typing && isActive ? <TypingBubble name={a.displayName} /> : null}
+          </div>
         </div>
       </div>
 
@@ -438,7 +440,7 @@ export default function ConsultationChatScreen() {
       {isActive ? (
         <div className="shrink-0 border-t bg-background px-3 py-2.5">
           <form
-            className="flex items-end gap-2"
+            className="mx-auto flex w-full items-end gap-2 md:max-w-xl md:px-6 lg:max-w-[760px]"
             onSubmit={(e) => {
               e.preventDefault();
               void sendMessage(draft);
@@ -473,7 +475,7 @@ export default function ConsultationChatScreen() {
         <div className="shrink-0 border-t bg-background px-4 py-3">
           <Button
             variant="outline"
-            className="h-11 w-full rounded-full press"
+            className="mx-auto h-11 w-full rounded-full press md:flex md:max-w-xl lg:max-w-[760px]"
             onClick={() => push({ id: "consultation.details", params: { id } })}
           >
             {t("consultation.viewDetails")}
@@ -483,7 +485,7 @@ export default function ConsultationChatScreen() {
 
       {/* ------------------------------------------------------- end dialog */}
       <AlertDialog open={endOpen} onOpenChange={setEndOpen}>
-        <AlertDialogContent className="mx-auto max-w-[340px] rounded-3xl">
+        <AlertDialogContent className="mx-auto max-w-[340px] rounded-3xl md:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-[17px] font-semibold">
               {t("consultation.endConfirmTitle")}
@@ -512,7 +514,7 @@ export default function ConsultationChatScreen() {
 
       {/* ------------------------------------------------------- back dialog */}
       <AlertDialog open={backOpen} onOpenChange={setBackOpen}>
-        <AlertDialogContent className="mx-auto max-w-[340px] rounded-3xl">
+        <AlertDialogContent className="mx-auto max-w-[340px] rounded-3xl md:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-[17px] font-semibold">
               {t("consultation.backTitle")}
@@ -553,7 +555,7 @@ export default function ConsultationChatScreen() {
       <Sheet open={insufficientOpen} onOpenChange={setInsufficientOpen}>
         <SheetContent
           side="bottom"
-          className="mx-auto max-w-[430px] gap-0 rounded-t-3xl px-5 pb-5 pt-5"
+          className="mx-auto max-w-[430px] gap-0 rounded-t-3xl px-5 pb-5 pt-5 md:max-w-md"
         >
           <SheetHeader className="space-y-1 px-0 text-left">
             <SheetTitle className="font-display text-[17px] font-semibold">

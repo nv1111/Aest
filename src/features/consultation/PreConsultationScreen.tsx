@@ -84,7 +84,7 @@ export default function PreConsultationScreen() {
 
   if (!astrologerId) {
     return (
-      <ScreenScaffold title={t("consultation.preTitle")}>
+      <ScreenScaffold title={t("consultation.preTitle")} width="narrow">
         <ErrorState title={t("common.errorGeneric")} />
       </ScreenScaffold>
     );
@@ -92,7 +92,7 @@ export default function PreConsultationScreen() {
 
   if (query.isLoading) {
     return (
-      <ScreenScaffold title={t("consultation.preTitle")}>
+      <ScreenScaffold title={t("consultation.preTitle")} width="narrow">
         <PageSkeleton variant="cards" />
       </ScreenScaffold>
     );
@@ -100,7 +100,7 @@ export default function PreConsultationScreen() {
 
   if (query.isError || !a) {
     return (
-      <ScreenScaffold title={t("consultation.preTitle")}>
+      <ScreenScaffold title={t("consultation.preTitle")} width="narrow">
         <ErrorState title={t("astrologers.notFoundTitle")} onRetry={() => query.refetch()} />
       </ScreenScaffold>
     );
@@ -112,7 +112,7 @@ export default function PreConsultationScreen() {
     mode === "chat" ? t("consultation.preChatBody", { name: a.displayName }) : meta.body;
 
   return (
-    <ScreenScaffold title={t("consultation.preTitle")} contentClassName="pb-32">
+    <ScreenScaffold title={t("consultation.preTitle")} contentClassName="pb-32" width="narrow">
       {/* ------------------------------------------------------ astrologer */}
       <div className="flex items-center gap-3.5 pt-1">
         <Avatar className="h-14 w-14 rounded-2xl border">

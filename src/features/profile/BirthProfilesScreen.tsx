@@ -59,7 +59,7 @@ export function BirthProfilesScreen() {
   const profiles = me.data.profiles;
 
   return (
-    <ScreenScaffold title={t("profile.birthProfiles")} subtitle={t("profile.birthProfilesSub")}>
+    <ScreenScaffold title={t("profile.birthProfiles")} subtitle={t("profile.birthProfilesSub")} width="wide">
       {profiles.length === 0 ? (
         <EmptyState
           icon={UserRound}
@@ -69,7 +69,7 @@ export function BirthProfilesScreen() {
           onAction={() => push({ id: "profile.birthEdit", params: { mode: "create" } })}
         />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0 lg:grid-cols-3">
           {profiles.map((p, i) => (
             <motion.div
               key={p.id}
@@ -83,7 +83,7 @@ export function BirthProfilesScreen() {
         </div>
       )}
 
-      <div className="pt-5">
+      <div className="pt-5 md:mx-auto md:max-w-xs">
         <Button
           onClick={() => push({ id: "profile.birthEdit", params: { mode: "create" } })}
           className="press h-12 w-full rounded-full text-[14px] font-semibold"
@@ -161,7 +161,7 @@ function ProfileCard({ profile }: { profile: BirthProfileDTO }) {
         </button>
       </SheetTrigger>
 
-      <SheetContent side="bottom" className="mx-auto max-w-[430px] rounded-t-3xl px-4 pb-6">
+      <SheetContent side="bottom" className="mx-auto max-w-[430px] rounded-t-3xl px-4 pb-6 md:max-w-lg">
         <SheetHeader className="px-0 pb-1">
           <SheetTitle className="text-left font-display text-[18px]">{profile.name}</SheetTitle>
         </SheetHeader>
@@ -192,7 +192,7 @@ function ProfileCard({ profile }: { profile: BirthProfileDTO }) {
         </div>
 
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogContent className="max-w-[360px] rounded-3xl">
+          <AlertDialogContent className="max-w-[360px] rounded-3xl sm:max-w-md">
             <AlertDialogHeader>
               <AlertDialogTitle className="font-display">{t("profile.deleteProfileConfirm")}</AlertDialogTitle>
               <AlertDialogDescription>{t("profile.deleteProfileBody")}</AlertDialogDescription>

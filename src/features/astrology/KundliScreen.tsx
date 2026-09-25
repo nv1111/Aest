@@ -58,7 +58,7 @@ export default function KundliScreen() {
   }
 
   return (
-    <ScreenScaffold title={t("astrology.kundli")} subtitle={t("astrology.kundliSubtitle")}>
+    <ScreenScaffold title={t("astrology.kundli")} subtitle={t("astrology.kundliSubtitle")} width="wide">
       {chart.isLoading || !profileId ? (
         <PageSkeleton variant="cards" />
       ) : chart.isError ? (
@@ -69,8 +69,9 @@ export default function KundliScreen() {
           onRetry={() => chart.refetch()}
         />
       ) : chart.data ? (
-        <div className="space-y-7 pt-1">
-          {/* ------------------------------------------------ core placements */}
+        <div className="pt-1">
+          <div className="lg:grid lg:grid-cols-[minmax(0,520px)_1fr] lg:gap-6">
+          {/* ------------------------------------------------ core placements (left column on lg) */}
           <section aria-label={t("astrology.overview")}>
             <SectionHeader action={isDemo ? <DemoDataBadge /> : undefined}>
               {t("astrology.overview")}
@@ -112,6 +113,8 @@ export default function KundliScreen() {
             </motion.div>
           </section>
 
+          {/* --------------------------------- highlights + planets (right column on lg) */}
+          <div className="mt-7 space-y-7 lg:mt-0">
           {/* ------------------------------------------------ highlights */}
           {chart.data.keyHighlights.length > 0 ? (
             <section aria-label={t("astrology.highlights")}>
@@ -172,7 +175,11 @@ export default function KundliScreen() {
               ))}
             </div>
           </section>
+          </div>
+          </div>
 
+          {/* --------------------------------- time accuracy note + CTAs */}
+          <div className="mt-7 space-y-7 md:mx-auto md:max-w-2xl">
           {/* ------------------------------------------------ time accuracy note */}
           {chart.data.note ? (
             <TrustNote icon={Clock3} variant="info">
@@ -196,6 +203,7 @@ export default function KundliScreen() {
             >
               {t("astrology.viewPlanets")}
             </Button>
+          </div>
           </div>
         </div>
       ) : null}

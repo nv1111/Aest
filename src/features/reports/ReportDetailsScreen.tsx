@@ -158,7 +158,7 @@ export function ReportDetailsScreen() {
 
   return (
     <ScreenScaffold title={report.title}>
-      <article className="pt-1">
+      <article className="pt-1 md:max-w-[65ch]">
         {/* header */}
         <motion.header
           initial={{ opacity: 0, y: 8 }}

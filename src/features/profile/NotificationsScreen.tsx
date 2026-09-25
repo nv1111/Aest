@@ -55,7 +55,7 @@ export function NotificationsScreen() {
   };
 
   return (
-    <ScreenScaffold title={t("profile.notifications")}>
+    <ScreenScaffold title={t("profile.notifications")} width="default">
       {query.isLoading ? (
         <PageSkeleton variant="list" />
       ) : query.isError || !prefs ? (

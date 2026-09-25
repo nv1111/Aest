@@ -52,6 +52,7 @@ export default function DashaScreen() {
       title={t("astrology.dashaTitle")}
       subtitle={t("astrology.dashaSubtitle")}
       right={isDemo ? <DemoDataBadge /> : undefined}
+      width="default"
     >
       {dasha.isLoading || !profileId ? (
         <PageSkeleton variant="cards" />
@@ -152,7 +153,7 @@ export default function DashaScreen() {
             <SectionHeader>
               {t("astrology.antardashasWithin", { lord: dasha.data.current.mahadasha.lord })}
             </SectionHeader>
-            <div className="space-y-2">
+            <div className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-2 lg:space-y-0">
               {dasha.data.antardashas.map((sub) => (
                 <div
                   key={`${sub.lord}-${sub.start}`}

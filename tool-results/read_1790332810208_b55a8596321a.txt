@@ -1,0 +1,717 @@
+     1→"use client";
+     2→
+     3→import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+     4→import { useQuery, useQueryClient } from "@tanstack/react-query";
+     5→import { motion } from "framer-motion";
+     6→import {
+     7→  ChevronLeft,
+     8→  Check,
+     9→  CheckCheck,
+    10→  FlaskConical,
+    11→  Loader2,
+    12→  MessageCircle,
+    13→  Phone,
+    14→  RotateCcw,
+    15→  Send,
+    16→  Video,
+    17→  Wallet,
+    18→} from "lucide-react";
+    19→import { toast } from "sonner";
+    20→import { consultationsService } from "@/services/consultations";
+    21→import { useMe } from "@/hooks/useSession";
+    22→import { useAppStore, useCurrentScreen } from "@/store/app";
+    23→import { t } from "@/i18n";
+    24→import { trackEvent } from "@/lib/analytics";
+    25→import { ApiError, errorMessage } from "@/lib/http";
+    26→import { formatINR, formatTimeIN } from "@/lib/money";
+    27→import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
+    28→import { ErrorState } from "@/components/shared/ErrorState";
+    29→import { PageSkeleton } from "@/components/shared/PageSkeleton";
+    30→import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+    31→import { Button } from "@/components/ui/button";
+    32→import { Textarea } from "@/components/ui/textarea";
+    33→import {
+    34→  AlertDialog,
+    35→  AlertDialogAction,
+    36→  AlertDialogCancel,
+    37→  AlertDialogContent,
+    38→  AlertDialogDescription,
+    39→  AlertDialogFooter,
+    40→  AlertDialogHeader,
+    41→  AlertDialogTitle,
+    42→} from "@/components/ui/alert-dialog";
+    43→import {
+    44→  Sheet,
+    45→  SheetContent,
+    46→  SheetDescription,
+    47→  SheetFooter,
+    48→  SheetHeader,
+    49→  SheetTitle,
+    50→} from "@/components/ui/sheet";
+    51→import type { ConsultationDTO, MessageDTO } from "@/types/models";
+    52→import { useConsultationSocket, type SocketStatus } from "./useConsultationSocket";
+    53→
+    54→/**
+    55→ * Consultation chat — full-height real-time surface. Everything billing-
+    56→ * critical stays visible: rate, running (approximate) charge, wallet
+    57→ * balance. Final amount is server-settled when the user ends.
+    58→ */
+    59→
+    60→interface PendingMessage {
+    61→  localId: string;
+    62→  content: string;
+    63→  status: "pending" | "failed";
+    64→}
+    65→
+    66→function initials(name: string) {
+    67→  return name
+    68→    .split(/\s+/)
+    69→    .map((p) => p[0])
+    70→    .slice(0, 2)
+    71→    .join("")
+    72→    .toUpperCase();
+    73→}
+    74→
+    75→function mmss(seconds: number): string {
+    76→  const m = Math.floor(seconds / 60);
+    77→  const s = seconds % 60;
+    78→  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    79→}
+    80→
+    81→const MODE_ICON = { chat: MessageCircle, audio: Phone, video: Video } as const;
+    82→
+    83→export default function ConsultationChatScreen() {
+    84→  const screen = useCurrentScreen();
+    85→  const id = screen.params?.id;
+    86→  const push = useAppStore((s) => s.push);
+    87→  const pop = useAppStore((s) => s.pop);
+    88→  const replace = useAppStore((s) => s.replace);
+    89→  const me = useMe();
+    90→  const qc = useQueryClient();
+    91→
+    92→  const [pending, setPending] = useState<PendingMessage[]>([]);
+    93→  const [draft, setDraft] = useState("");
+    94→  const [typing, setTyping] = useState(false);
+    95→  const [now, setNow] = useState(() => Date.now());
+    96→  const [endOpen, setEndOpen] = useState(false);
+    97→  const [backOpen, setBackOpen] = useState(false);
+    98→  const [insufficientOpen, setInsufficientOpen] = useState(false);
+    99→  const [ending, setEnding] = useState(false);
+   100→
+   101→  const query = useQuery({
+   102→    queryKey: ["consultation", id],
+   103→    queryFn: () => consultationsService.get(id!),
+   104→    enabled: !!id,
+   105→  });
+   106→
+   107→  const consultation = query.data?.consultation;
+   108→  const serverMessages: MessageDTO[] = useMemo(() => query.data?.messages ?? [], [query.data]);
+   109→  const isActive = consultation?.status === "active";
+   110→  const rate = consultation?.ratePerMinute ?? 0;
+   111→  const balance = me.data?.wallet.balance ?? 0;
+   112→
+   113→  const scrollRef = useRef<HTMLDivElement>(null);
+   114→  const lastCountRef = useRef(0);
+   115→
+   116→  // append a server message to the query cache (dedupe by id)
+   117→  const appendMessage = useCallback(
+   118→    (m: MessageDTO) => {
+   119→      if (!id) return;
+   120→      qc.setQueryData<{ consultation: ConsultationDTO; messages: MessageDTO[] }>(
+   121→        ["consultation", id],
+   122→        (old) => {
+   123→          if (!old) return old;
+   124→          if (old.messages.some((x) => x.id === m.id)) return old;
+   125→          return { ...old, messages: [...old.messages, m] };
+   126→        }
+   127→      );
+   128→    },
+   129→    [qc, id]
+   130→  );
+   131→
+   132→  const markAllUserRead = useCallback(
+   133→    (readAt: string) => {
+   134→      if (!id) return;
+   135→      qc.setQueryData<{ consultation: ConsultationDTO; messages: MessageDTO[] }>(
+   136→        ["consultation", id],
+   137→        (old) =>
+   138→          old
+   139→            ? {
+   140→                ...old,
+   141→                messages: old.messages.map((x) =>
+   142→                  x.senderRole === "user" && !x.readAt ? { ...x, readAt } : x
+   143→                ),
+   144→              }
+   145→            : old
+   146→      );
+   147→    },
+   148→    [qc, id]
+   149→  );
+   150→
+   151→  // ------------------------------------------------------------- realtime
+   152→  const { status } = useConsultationSocket(
+   153→    id,
+   154→    me.data?.user.id,
+   155→    !!id && !!me.data?.user.id && (isActive ?? false),
+   156→    {
+   157→      onMessage: (m) => {
+   158→        appendMessage(m);
+   159→        if (m.senderRole === "astrologer" && id) {
+   160→          void consultationsService.markRead(id).catch(() => {});
+   161→        }
+   162→      },
+   163→      onTyping: (isTyping) => setTyping(isTyping),
+   164→      onRead: (readAt) => markAllUserRead(readAt),
+   165→      onEnded: () => {
+   166→        void qc.invalidateQueries({ queryKey: ["consultation", id] });
+   167→        void qc.invalidateQueries({ queryKey: ["me"] });
+   168→        void qc.invalidateQueries({ queryKey: ["consultations"] });
+   169→      },
+   170→    }
+   171→  );
+   172→
+   173→  // mark astrologer messages read while the chat is open
+   174→  useEffect(() => {
+   175→    if (isActive && id && query.data) {
+   176→      void consultationsService.markRead(id).catch(() => {});
+   177→    }
+   178→  }, [isActive, id, query.data]);
+   179→
+   180→  // billing meter ticks every second while active
+   181→  useEffect(() => {
+   182→    if (!isActive) return;
+   183→    const timer = setInterval(() => setNow(Date.now()), 1000);
+   184→    return () => clearInterval(timer);
+   185→  }, [isActive]);
+   186→
+   187→  // typing indicator safety clear (6s without events)
+   188→  useEffect(() => {
+   189→    if (!typing) return;
+   190→    const timer = setTimeout(() => setTyping(false), 6000);
+   191→    return () => clearTimeout(timer);
+   192→  }, [typing]);
+   193→
+   194→  // auto-scroll when new messages arrive
+   195→  useEffect(() => {
+   196→    const total = serverMessages.length + pending.length + (typing ? 1 : 0);
+   197→    if (total === lastCountRef.current) return;
+   198→    lastCountRef.current = total;
+   199→    const el = scrollRef.current;
+   200→    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+   201→  }, [serverMessages.length, pending.length, typing]);
+   202→
+   203→  // ------------------------------------------------------------ actions
+   204→  const sendMessage = useCallback(
+   205→    async (content: string) => {
+   206→      const text = content.trim();
+   207→      if (!text || !id || !isActive) return;
+   208→      const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+   209→      setPending((p) => [...p, { localId, content: text, status: "pending" }]);
+   210→      setDraft("");
+   211→      try {
+   212→        const { message } = await consultationsService.sendMessage(id, text);
+   213→        setPending((p) => p.filter((x) => x.localId !== localId));
+   214→        appendMessage(message);
+   215→      } catch (err) {
+   216→        setPending((p) => p.map((x) => (x.localId === localId ? { ...x, status: "failed" } : x)));
+   217→        setDraft(text); // never lose typed content
+   218→        if (err instanceof ApiError && err.code === "insufficient_balance") {
+   219→          setInsufficientOpen(true);
+   220→          void qc.invalidateQueries({ queryKey: ["me"] });
+   221→        } else {
+   222→          toast.error(errorMessage(err));
+   223→        }
+   224→      }
+   225→    },
+   226→    [id, isActive, appendMessage, qc]
+   227→  );
+   228→
+   229→  const retryMessage = useCallback(
+   230→    async (m: PendingMessage) => {
+   231→      if (!id) return;
+   232→      setPending((p) => p.map((x) => (x.localId === m.localId ? { ...x, status: "pending" } : x)));
+   233→      try {
+   234→        const { message } = await consultationsService.sendMessage(id, m.content);
+   235→        setPending((p) => p.filter((x) => x.localId !== m.localId));
+   236→        appendMessage(message);
+   237→      } catch (err) {
+   238→        setPending((p) => p.map((x) => (x.localId === m.localId ? { ...x, status: "failed" } : x)));
+   239→        if (err instanceof ApiError && err.code === "insufficient_balance") {
+   240→          setInsufficientOpen(true);
+   241→          void qc.invalidateQueries({ queryKey: ["me"] });
+   242→        } else {
+   243→          toast.error(errorMessage(err));
+   244→        }
+   245→      }
+   246→    },
+   247→    [id, appendMessage, qc]
+   248→  );
+   249→
+   250→  const endConsultation = useCallback(async () => {
+   251→    if (!id || !isActive || ending) return;
+   252→    setEnding(true);
+   253→    try {
+   254→      await consultationsService.end(id);
+   255→      trackEvent("consultation_completed");
+   256→      void qc.invalidateQueries({ queryKey: ["me"] });
+   257→      void qc.invalidateQueries({ queryKey: ["consultations"] });
+   258→      void qc.invalidateQueries({ queryKey: ["consultation", id] });
+   259→      replace({ id: "consultation.details", params: { id } });
+   260→    } catch (err) {
+   261→      toast.error(errorMessage(err));
+   262→      setEnding(false);
+   263→    }
+   264→  }, [id, isActive, ending, qc, replace]);
+   265→
+   266→  const handleBack = () => {
+   267→    if (isActive) {
+   268→      setBackOpen(true);
+   269→      return;
+   270→    }
+   271→    pop();
+   272→  };
+   273→
+   274→  // ------------------------------------------------------------ render
+   275→  if (!id) {
+   276→    return (
+   277→      <ScreenScaffold bare>
+   278→        <ErrorState title={t("common.errorGeneric")} />
+   279→      </ScreenScaffold>
+   280→    );
+   281→  }
+   282→
+   283→  if (query.isLoading) {
+   284→    return (
+   285→      <ScreenScaffold bare>
+   286→        <PageSkeleton variant="list" />
+   287→      </ScreenScaffold>
+   288→    );
+   289→  }
+   290→
+   291→  if (query.isError || !consultation) {
+   292→    return (
+   293→      <ScreenScaffold bare>
+   294→        <ErrorState title={t("astrologers.notFoundTitle")} onRetry={() => query.refetch()} />
+   295→      </ScreenScaffold>
+   296→    );
+   297→  }
+   298→
+   299→  const a = consultation.astrologer;
+   300→  const ModeIcon = MODE_ICON[(consultation.mode as keyof typeof MODE_ICON) ?? "chat"] ?? MessageCircle;
+   301→
+   302→  const startedMs = consultation.startedAt ? new Date(consultation.startedAt).getTime() : null;
+   303→  const elapsedSec =
+   304→    isActive && startedMs
+   305→      ? Math.max(0, Math.floor((now - startedMs) / 1000))
+   306→      : consultation.durationSeconds ?? 0;
+   307→  const runningCharge = rate > 0 ? Math.max(1, Math.ceil(elapsedSec / 60)) * rate : 0;
+   308→
+   309→  return (
+   310→    <ScreenScaffold bare>
+   311→      {/* ------------------------------------------------------------ header */}
+   312→      <header className="shrink-0 border-b bg-background/95 backdrop-blur-md">
+   313→        <div className="flex items-center gap-2 px-3 pt-2.5 pb-2">
+   314→          <button
+   315→            type="button"
+   316→            onClick={handleBack}
+   317→            aria-label={t("common.back")}
+   318→            className="press flex h-11 w-11 items-center justify-center rounded-full text-foreground hover:bg-secondary"
+   319→          >
+   320→            <ChevronLeft className="h-5 w-5" />
+   321→          </button>
+   322→          <button
+   323→            type="button"
+   324→            onClick={() => push({ id: "astrologers.profile", params: { id: a.id } })}
+   325→            className="press flex min-w-0 flex-1 items-center gap-2.5 text-left"
+   326→            aria-label={`${a.displayName} — ${t("astrologers.viewProfile")}`}
+   327→          >
+   328→            <div className="relative shrink-0">
+   329→              <Avatar className="h-9 w-9 rounded-xl border">
+   330→                <AvatarImage src={a.photoUrl ?? undefined} alt={a.displayName} />
+   331→                <AvatarFallback className="rounded-xl bg-secondary text-[12px] font-semibold text-secondary-foreground">
+   332→                  {initials(a.displayName)}
+   333→                </AvatarFallback>
+   334→              </Avatar>
+   335→              {a.onlineStatus === "online" ? (
+   336→                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-success" aria-label={t("common.online")} />
+   337→              ) : null}
+   338→            </div>
+   339→            <div className="min-w-0 flex-1">
+   340→              <div className="flex items-center gap-1.5">
+   341→                <p className="truncate text-[14px] font-semibold leading-tight text-foreground">
+   342→                  {a.displayName}
+   343→                </p>
+   344→                <ModeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+   345→              </div>
+   346→              <p className="flex items-center gap-1 truncate text-[10.5px] leading-snug text-muted-foreground">
+   347→                <FlaskConical className="h-3 w-3 shrink-0" aria-hidden />
+   348→                {t("consultation.demoAstrologer")}
+   349→              </p>
+   350→            </div>
+   351→          </button>
+   352→          <span className="shrink-0 whitespace-nowrap rounded-full bg-primary/8 px-2.5 py-1 text-[12px] font-semibold text-primary">
+   353→            {formatINR(rate)}
+   354→            <span className="font-normal text-primary/70">{t("common.perMinute")}</span>
+   355→          </span>
+   356→          {isActive ? (
+   357→            <Button
+   358→              variant="outline"
+   359→              size="sm"
+   360→              className="h-9 rounded-full px-3.5 text-[12.5px] font-medium text-destructive press"
+   361→              onClick={() => setEndOpen(true)}
+   362→            >
+   363→              {t("consultation.end")}
+   364→            </Button>
+   365→          ) : null}
+   366→        </div>
+   367→
+   368→        {/* -------------------------------------------------- billing meter */}
+   369→        <div className="border-t border-warning/30 bg-warning/10 px-4 py-2.5" aria-live="off">
+   370→          <div className="flex items-center justify-between gap-3 text-[12.5px]">
+   371→            <span className="text-muted-foreground">
+   372→              {t("consultation.runningDuration")}{" "}
+   373→              <span className="font-semibold tabular-nums text-foreground">{mmss(elapsedSec)}</span>
+   374→            </span>
+   375→            <span className="text-muted-foreground">
+   376→              {t("consultation.runningCharge")}{" "}
+   377→              <span className="font-semibold text-foreground">
+   378→                {isActive ? "≈ " : ""}
+   379→                {formatINR(isActive ? runningCharge : consultation.totalAmount ?? 0)}
+   380→              </span>
+   381→            </span>
+   382→            <span className="inline-flex items-center gap-1 text-muted-foreground">
+   383→              <Wallet className="h-3.5 w-3.5" aria-hidden />
+   384→              {formatINR(balance)}
+   385→            </span>
+   386→          </div>
+   387→          <p className="mt-0.5 text-[10.5px] leading-snug text-muted-foreground">
+   388→            {isActive
+   389→              ? t("consultation.approxNote")
+   390→              : `${t("consultation.ended")} — ${formatINR(consultation.totalAmount ?? 0)}`}
+   391→          </p>
+   392→        </div>
+   393→
+   394→        {/* --------------------------------------------- connection / ended */}
+   395→        <div className="flex items-center justify-between gap-2 px-4 py-1.5 text-[11.5px]">
+   396→          <ConnectionChip status={isActive ? status : "offline"} />
+   397→          {!isActive ? (
+   398→            <button
+   399→              type="button"
+   400→              onClick={() => push({ id: "consultation.details", params: { id } })}
+   401→              className="press text-[11.5px] font-medium text-primary"
+   402→            >
+   403→              {t("consultation.viewDetails")}
+   404→            </button>
+   405→          ) : null}
+   406→        </div>
+   407→        {isActive && (status === "reconnecting" || status === "offline") ? (
+   408→          <div className="border-t border-warning/30 bg-warning/10 px-4 py-1.5 text-center text-[11.5px] text-foreground/80">
+   409→            {t("consultation.reconnectBanner")}
+   410→          </div>
+   411→        ) : null}
+   412→      </header>
+   413→
+   414→      {/* ------------------------------------------------------------ messages */}
+   415→      <div
+   416→        ref={scrollRef}
+   417→        className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-4"
+   418→        role="log"
+   419→        aria-label={t("consultation.chatTitle")}
+   420→      >
+   421→        {!isActive ? (
+   422→          <div className="mx-auto mb-3 max-w-[85%] rounded-xl bg-secondary px-3 py-2 text-center text-[12px] text-secondary-foreground">
+   423→            {t("consultation.endedBanner")}
+   424→          </div>
+   425→        ) : null}
+   426→        <div className="space-y-2.5">
+   427→          {serverMessages.map((m) => (
+   428→            <MessageRow key={m.id} m={m} astrologer={a} />
+   429→          ))}
+   430→          {pending.map((p) => (
+   431→            <PendingRow key={p.localId} p={p} onRetry={() => void retryMessage(p)} />
+   432→          ))}
+   433→          {typing && isActive ? <TypingBubble name={a.displayName} /> : null}
+   434→        </div>
+   435→      </div>
+   436→
+   437→      {/* ------------------------------------------------------------ input */}
+   438→      {isActive ? (
+   439→        <div className="shrink-0 border-t bg-background px-3 py-2.5">
+   440→          <form
+   441→            className="flex items-end gap-2"
+   442→            onSubmit={(e) => {
+   443→              e.preventDefault();
+   444→              void sendMessage(draft);
+   445→            }}
+   446→          >
+   447→            <Textarea
+   448→              value={draft}
+   449→              onChange={(e) => setDraft(e.target.value)}
+   450→              onKeyDown={(e) => {
+   451→                if (e.key === "Enter" && !e.shiftKey) {
+   452→                  e.preventDefault();
+   453→                  void sendMessage(draft);
+   454→                }
+   455→              }}
+   456→              placeholder={t("consultation.typeMessage")}
+   457→              aria-label={t("consultation.typeMessage")}
+   458→              rows={1}
+   459→              className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl bg-card py-2.5 text-[13.5px]"
+   460→            />
+   461→            <Button
+   462→              type="submit"
+   463→              size="icon"
+   464→              className="h-11 w-11 shrink-0 rounded-full press"
+   465→              disabled={!draft.trim() || pending.some((p) => p.status === "pending")}
+   466→              aria-label={t("consultation.send")}
+   467→            >
+   468→              <Send className="h-4.5 w-4.5" aria-hidden />
+   469→            </Button>
+   470→          </form>
+   471→        </div>
+   472→      ) : (
+   473→        <div className="shrink-0 border-t bg-background px-4 py-3">
+   474→          <Button
+   475→            variant="outline"
+   476→            className="h-11 w-full rounded-full press"
+   477→            onClick={() => push({ id: "consultation.details", params: { id } })}
+   478→          >
+   479→            {t("consultation.viewDetails")}
+   480→          </Button>
+   481→        </div>
+   482→      )}
+   483→
+   484→      {/* ------------------------------------------------------- end dialog */}
+   485→      <AlertDialog open={endOpen} onOpenChange={setEndOpen}>
+   486→        <AlertDialogContent className="mx-auto max-w-[340px] rounded-3xl">
+   487→          <AlertDialogHeader>
+   488→            <AlertDialogTitle className="font-display text-[17px] font-semibold">
+   489→              {t("consultation.endConfirmTitle")}
+   490→            </AlertDialogTitle>
+   491→            <AlertDialogDescription className="text-[13px] leading-relaxed">
+   492→              {t("consultation.endConfirmBody")}
+   493→            </AlertDialogDescription>
+   494→          </AlertDialogHeader>
+   495→          <AlertDialogFooter className="flex-row gap-2">
+   496→            <AlertDialogCancel className="h-11 flex-1 rounded-full">
+   497→              {t("consultation.endConfirmNo")}
+   498→            </AlertDialogCancel>
+   499→            <AlertDialogAction
+   500→              className="h-11 flex-1 rounded-full press"
+   501→              onClick={(e) => {
+   502→                e.preventDefault();
+   503→                setEndOpen(false);
+   504→                void endConsultation();
+   505→              }}
+   506→            >
+   507→              {ending ? t("common.loading") : t("consultation.endConfirmYes")}
+   508→            </AlertDialogAction>
+   509→          </AlertDialogFooter>
+   510→        </AlertDialogContent>
+   511→      </AlertDialog>
+   512→
+   513→      {/* ------------------------------------------------------- back dialog */}
+   514→      <AlertDialog open={backOpen} onOpenChange={setBackOpen}>
+   515→        <AlertDialogContent className="mx-auto max-w-[340px] rounded-3xl">
+   516→          <AlertDialogHeader>
+   517→            <AlertDialogTitle className="font-display text-[17px] font-semibold">
+   518→              {t("consultation.backTitle")}
+   519→            </AlertDialogTitle>
+   520→            <AlertDialogDescription className="text-[13px] leading-relaxed">
+   521→              {t("consultation.backBody", { rate: formatINR(rate) })}
+   522→            </AlertDialogDescription>
+   523→          </AlertDialogHeader>
+   524→          <AlertDialogFooter className="flex-row gap-2">
+   525→            <AlertDialogCancel className="h-11 flex-1 rounded-full">
+   526→              {t("consultation.endConfirmNo")}
+   527→            </AlertDialogCancel>
+   528→            <AlertDialogAction
+   529→              className="h-11 flex-1 rounded-full press"
+   530→              onClick={(e) => {
+   531→                e.preventDefault();
+   532→                setBackOpen(false);
+   533→                void endConsultation();
+   534→              }}
+   535→            >
+   536→              {t("consultation.backEnd")}
+   537→            </AlertDialogAction>
+   538→            <AlertDialogAction
+   539→              className="h-11 flex-1 rounded-full press"
+   540→              onClick={(e) => {
+   541→                e.preventDefault();
+   542→                setBackOpen(false);
+   543→                pop();
+   544→              }}
+   545→            >
+   546→              {t("consultation.backKeep")}
+   547→            </AlertDialogAction>
+   548→          </AlertDialogFooter>
+   549→        </AlertDialogContent>
+   550→      </AlertDialog>
+   551→
+   552→      {/* ------------------------------------------------- insufficient sheet */}
+   553→      <Sheet open={insufficientOpen} onOpenChange={setInsufficientOpen}>
+   554→        <SheetContent
+   555→          side="bottom"
+   556→          className="mx-auto max-w-[430px] gap-0 rounded-t-3xl px-5 pb-5 pt-5"
+   557→        >
+   558→          <SheetHeader className="space-y-1 px-0 text-left">
+   559→            <SheetTitle className="font-display text-[17px] font-semibold">
+   560→              {t("consultation.insufficientTitle")}
+   561→            </SheetTitle>
+   562→            <SheetDescription className="text-[13px] leading-relaxed">
+   563→              {t("consultation.insufficientBody")}
+   564→            </SheetDescription>
+   565→          </SheetHeader>
+   566→          <SheetFooter className="mt-4 flex-row gap-2 px-0">
+   567→            <Button
+   568→              variant="outline"
+   569→              className="h-11 flex-1 rounded-full press"
+   570→              onClick={() => setInsufficientOpen(false)}
+   571→            >
+   572→              {t("consultation.closeLabel")}
+   573→            </Button>
+   574→            <Button
+   575→              className="h-11 flex-1 rounded-full press"
+   576→              onClick={() => {
+   577→                setInsufficientOpen(false);
+   578→                push({ id: "wallet.recharge" });
+   579→              }}
+   580→            >
+   581→              <Wallet className="mr-1.5 h-4 w-4" aria-hidden />
+   582→              {t("consultation.insufficientCta")}
+   583→            </Button>
+   584→          </SheetFooter>
+   585→        </SheetContent>
+   586→      </Sheet>
+   587→    </ScreenScaffold>
+   588→  );
+   589→}
+   590→
+   591→// ---------------------------------------------------------------- pieces
+   592→
+   593→function ConnectionChip({ status }: { status: SocketStatus }) {
+   594→  const map: Record<SocketStatus, { label: string; dot: string; text: string }> = {
+   595→    connected: { label: t("consultation.connected"), dot: "bg-success", text: "text-success" },
+   596→    connecting: { label: t("consultation.connecting"), dot: "bg-muted-foreground/50", text: "text-muted-foreground" },
+   597→    reconnecting: { label: t("consultation.reconnecting"), dot: "bg-warning", text: "text-warning" },
+   598→    offline: { label: t("consultation.offline"), dot: "bg-muted-foreground/50", text: "text-muted-foreground" },
+   599→  };
+   600→  const s = map[status];
+   601→  return (
+   602→    <span className={`inline-flex items-center gap-1.5 ${s.text}`} role="status">
+   603→      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} aria-hidden />
+   604→      {s.label}
+   605→    </span>
+   606→  );
+   607→}
+   608→
+   609→function MessageRow({ m, astrologer }: { m: MessageDTO; astrologer: { displayName: string; photoUrl: string | null } }) {
+   610→  if (m.senderRole === "system") {
+   611→    return (
+   612→      <p className="mx-auto max-w-[85%] rounded-xl bg-secondary px-3 py-1.5 text-center text-[11.5px] leading-relaxed text-muted-foreground">
+   613→        {m.content}
+   614→      </p>
+   615→    );
+   616→  }
+   617→
+   618→  const isUser = m.senderRole === "user";
+   619→  return (
+   620→    <motion.div
+   621→      initial={{ opacity: 0, y: 6 }}
+   622→      animate={{ opacity: 1, y: 0 }}
+   623→      transition={{ duration: 0.15 }}
+   624→      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+   625→    >
+   626→      <div className={`flex max-w-[82%] items-end gap-1.5 ${isUser ? "flex-row-reverse" : ""}`}>
+   627→        {!isUser ? (
+   628→          <Avatar className="h-7 w-7 rounded-full border">
+   629→            <AvatarImage src={astrologer.photoUrl ?? undefined} alt="" />
+   630→            <AvatarFallback className="rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
+   631→              {initials(astrologer.displayName)}
+   632→            </AvatarFallback>
+   633→          </Avatar>
+   634→        ) : null}
+   635→        <div className="min-w-0">
+   636→          <div
+   637→            className={
+   638→              isUser
+   639→                ? "rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-[13.5px] leading-relaxed text-primary-foreground"
+   640→                : "rounded-2xl rounded-bl-md border bg-card px-3.5 py-2.5 text-[13.5px] leading-relaxed text-foreground"
+   641→            }
+   642→          >
+   643→            {m.content}
+   644→          </div>
+   645→          <div
+   646→            className={`mt-1 flex items-center gap-1 text-[10.5px] text-muted-foreground ${isUser ? "justify-end" : ""}`}
+   647→          >
+   648→            <time dateTime={m.createdAt}>{formatTimeIN(m.createdAt)}</time>
+   649→            {isUser ? (
+   650→              m.readAt ? (
+   651→                <CheckCheck className="h-3.5 w-3.5 text-success" aria-label={t("consultation.readAria")} />
+   652→              ) : (
+   653→                <Check className="h-3.5 w-3.5" aria-label={t("consultation.sentAria")} />
+   654→              )
+   655→            ) : null}
+   656→          </div>
+   657→        </div>
+   658→      </div>
+   659→    </motion.div>
+   660→  );
+   661→}
+   662→
+   663→function PendingRow({ p, onRetry }: { p: PendingMessage; onRetry: () => void }) {
+   664→  return (
+   665→    <div className="flex justify-end">
+   666→      <div className="flex max-w-[82%] items-end gap-1.5 flex-row-reverse">
+   667→        <div className="min-w-0">
+   668→          <div
+   669→            className={`rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-[13.5px] leading-relaxed text-primary-foreground ${
+   670→              p.status === "pending" ? "opacity-60" : "border-2 border-warning bg-warning/15"
+   671→            }`}
+   672→          >
+   673→            {p.content}
+   674→          </div>
+   675→          <div className="mt-1 flex items-center justify-end gap-1.5 text-[10.5px] text-muted-foreground">
+   676→            {p.status === "pending" ? (
+   677→              <>
+   678→                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+   679→                {t("consultation.sentAria")}…
+   680→              </>
+   681→            ) : (
+   682→              <>
+   683→                <span className="text-warning">{t("consultation.sendFailed")}</span>
+   684→                <button
+   685→                  type="button"
+   686→                  onClick={onRetry}
+   687→                  className="press inline-flex h-6 w-6 items-center justify-center rounded-full text-foreground hover:bg-secondary"
+   688→                  aria-label={t("consultation.retrySend")}
+   689→                >
+   690→                  <RotateCcw className="h-3.5 w-3.5" />
+   691→                </button>
+   692→              </>
+   693→            )}
+   694→          </div>
+   695→        </div>
+   696→      </div>
+   697→    </div>
+   698→  );
+   699→}
+   700→
+   701→function TypingBubble({ name }: { name: string }) {
+   702→  return (
+   703→    <div className="flex items-end gap-1.5">
+   704→      <span className="flex items-center gap-1 rounded-2xl rounded-bl-md border bg-card px-3.5 py-3" aria-label={t("consultation.typing", { name })}>
+   705→        {[0, 1, 2].map((i) => (
+   706→          <motion.span
+   707→            key={i}
+   708→            className="h-1.5 w-1.5 rounded-full bg-muted-foreground"
+   709→            animate={{ opacity: [0.35, 1, 0.35] }}
+   710→            transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18 }}
+   711→          />
+   712→        ))}
+   713→      </span>
+   714→    </div>
+   715→  );
+   716→}
+   717→

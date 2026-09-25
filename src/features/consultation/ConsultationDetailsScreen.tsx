@@ -78,6 +78,8 @@ export default function ConsultationDetailsScreen() {
 
   return (
     <ScreenScaffold title={t("consultation.detailsTitle")} contentClassName="pb-32">
+      <div className="lg:grid lg:grid-cols-2 lg:gap-x-6">
+        <div className="min-w-0">
       <div className="pt-1">
         <AstrologerCard
           a={c.astrologer}
@@ -145,8 +147,10 @@ export default function ConsultationDetailsScreen() {
         </div>
       </section>
 
+        </div>
+        <div className="min-w-0">
       {/* -------------------------------------------------------- transcript */}
-      <section className="mt-6" aria-label={t("consultation.transcript")}>
+      <section className="mt-6 lg:mt-0" aria-label={t("consultation.transcript")}>
         <SectionHeader>{t("consultation.transcript")}</SectionHeader>
         <Accordion type="single" collapsible>
           <AccordionItem value="transcript" className="rounded-2xl border bg-card px-4">
@@ -209,6 +213,8 @@ export default function ConsultationDetailsScreen() {
           </span>
         </button>
       </section>
+        </div>
+      </div>
 
       {/* --------------------------------------------------------- open chat */}
       {isActive ? (
@@ -366,7 +372,7 @@ function ReviewSection({
       </section>
 
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="rounded-t-3xl px-5 pb-7 pt-5">
+        <SheetContent side="bottom" className="rounded-t-3xl px-5 pb-7 pt-5 md:mx-auto md:max-w-lg">
           <SheetHeader className="px-0 pb-1 text-left">
             <SheetTitle className="font-display text-[19px] font-semibold">{t("consultation.rateTitle")}</SheetTitle>
             <SheetDescription className="text-[12.5px] leading-snug">

@@ -82,9 +82,9 @@ export default function ConsultationHistoryScreen() {
   };
 
   return (
-    <ScreenScaffold title={t("consultation.history")}>
+    <ScreenScaffold title={t("consultation.history")} width="wide">
       <Tabs value={tab} onValueChange={setTab} className="pt-1">
-        <TabsList className="h-11 w-full rounded-full p-1">
+        <TabsList className="mx-auto h-11 w-full rounded-full p-1 md:flex md:max-w-md">
           <TabsTrigger value="completed" className="h-9 flex-1 rounded-full text-[12.5px]">
             {t("consultation.completed")}
           </TabsTrigger>
@@ -119,7 +119,7 @@ export default function ConsultationHistoryScreen() {
                   onAction={() => useAppStore.getState().setTab("astrologers")}
                 />
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-2.5 lg:grid lg:grid-cols-2 lg:space-y-0 lg:gap-x-3 lg:gap-y-2.5">
                   {ended.map((c) => (
                     <HistoryCard key={c.id} c={c} onClick={() => open(c)} />
                   ))}
@@ -131,7 +131,7 @@ export default function ConsultationHistoryScreen() {
               {active.length === 0 ? (
                 <EmptyState icon={Clock3} title={t("consultation.noTabTitle")} body={t("consultation.noTabBody")} />
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-2.5 lg:grid lg:grid-cols-2 lg:space-y-0 lg:gap-x-3 lg:gap-y-2.5">
                   {active.map((c) => (
                     <HistoryCard key={c.id} c={c} onClick={() => open(c)} />
                   ))}
@@ -143,7 +143,7 @@ export default function ConsultationHistoryScreen() {
               {upcoming.length === 0 ? (
                 <EmptyState icon={Clock3} title={t("consultation.noTabTitle")} body={t("consultation.noTabBody")} />
               ) : (
-                <div className="space-y-2.5">
+                <div className="space-y-2.5 lg:grid lg:grid-cols-2 lg:space-y-0 lg:gap-x-3 lg:gap-y-2.5">
                   {upcoming.map((c) => (
                     <HistoryCard key={c.id} c={c} onClick={() => open(c)} />
                   ))}

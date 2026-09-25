@@ -122,7 +122,7 @@ export function BirthEditScreen() {
   ];
 
   return (
-    <ScreenScaffold title={title}>
+    <ScreenScaffold title={title} width="narrow">
       <div className="space-y-5 pt-1">
         <p className="px-1 text-[14px] leading-relaxed text-muted-foreground">{body}</p>
 

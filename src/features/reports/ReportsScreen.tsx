@@ -68,7 +68,7 @@ export function ReportsScreen() {
   }
 
   return (
-    <ScreenScaffold title={t("reports.title")} subtitle={t("reports.subtitle")}>
+    <ScreenScaffold title={t("reports.title")} subtitle={t("reports.subtitle")} width="wide">
       <div className="space-y-7 pt-1">
         {/* ------------------------------------------------ generate zone */}
         <section aria-label={t("reports.generateZone")}>
@@ -78,7 +78,7 @@ export function ReportsScreen() {
               {t("reports.builtFrom", { name: profileName })}
             </p>
           ) : null}
-          <div className="space-y-2.5">
+          <div className="space-y-2.5 md:grid md:grid-cols-2 md:items-start md:gap-2.5 md:space-y-0 lg:grid-cols-3">
             {TEMPLATES.map((tpl, i) => (
               <motion.button
                 key={tpl.type}

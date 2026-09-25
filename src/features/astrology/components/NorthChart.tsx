@@ -78,7 +78,7 @@ export function NorthChart({
       width="100%"
       role="group"
       aria-label="North Indian birth chart, 12 houses"
-      className="block select-none"
+      className="block h-auto w-full select-none md:mx-auto md:max-w-[560px]"
     >
       {/* ------------------------------------------------ interactive house regions */}
       {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => {

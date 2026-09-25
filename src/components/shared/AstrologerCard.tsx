@@ -98,7 +98,7 @@ export function AstrologerCard({
             <span aria-hidden>·</span>
             <span>{a.reviewCount} {t("astrologers.reviews")}</span>
             <span aria-hidden>·</span>
-            <span>
+            <span className="md:min-w-0 md:truncate">
               {a.languages.slice(0, 2).join(", ")}
             </span>
           </div>

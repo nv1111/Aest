@@ -48,9 +48,13 @@ export function PrivacyScreen() {
   ];
 
   return (
-    <ScreenScaffold title={t("profile.privacyTitle")}>
-      <div className="space-y-5 pt-1">
-        <p className="px-1 text-[14px] leading-relaxed text-muted-foreground">
+    <ScreenScaffold title={t("profile.privacyTitle")} width="default">
+      {/*
+       * Mobile: single column stack. lg+: the five plain-language cards pair
+       * into a calm 2-column arrangement (intro + destructive CTA stay full-width).
+       */}
+      <div className="space-y-5 pt-1 lg:grid lg:grid-cols-2 lg:gap-x-6 lg:gap-y-5 lg:space-y-0">
+        <p className="px-1 text-[14px] leading-relaxed text-muted-foreground lg:col-span-2">
           {t("common.appName")} {t("common.tagline").toLowerCase()} — your data stays yours.
         </p>
 
@@ -104,7 +108,7 @@ export function PrivacyScreen() {
         <button
           type="button"
           onClick={() => push({ id: "profile.delete" })}
-          className="press flex w-full items-center justify-between gap-3 rounded-2xl border border-destructive/25 bg-destructive/5 p-4 text-left"
+          className="press flex w-full items-center justify-between gap-3 rounded-2xl border border-destructive/25 bg-destructive/5 p-4 text-left lg:col-span-2"
           aria-label={t("profile.deleteAccount")}
         >
           <span className="min-w-0">

@@ -56,6 +56,7 @@ export default function PlanetsScreen() {
       title={t("astrology.planets")}
       subtitle={t("astrology.planetsSubtitle")}
       right={isDemo ? <DemoDataBadge /> : undefined}
+      width="wide"
     >
       {chart.isLoading || !profileId ? (
         <PageSkeleton variant="list" />
@@ -67,7 +68,7 @@ export default function PlanetsScreen() {
           onRetry={() => chart.refetch()}
         />
       ) : (
-        <div className="space-y-2.5 pt-1">
+        <div className="space-y-2.5 pt-1 md:grid md:grid-cols-2 md:items-start md:gap-2.5 md:space-y-0 lg:grid-cols-3">
           {planets.map((p) => {
             const expanded = open === p.planet;
             const meaning = planetMeaning(p.planet);

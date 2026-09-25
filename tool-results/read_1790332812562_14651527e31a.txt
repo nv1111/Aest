@@ -1,0 +1,717 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+     4→     4→import { useQuery, useQueryClient } from "@tanstack/react-query";
+     5→     5→import { motion } from "framer-motion";
+     6→     6→import {
+     7→     7→  ChevronLeft,
+     8→     8→  Check,
+     9→     9→  CheckCheck,
+    10→    10→  FlaskConical,
+    11→    11→  Loader2,
+    12→    12→  MessageCircle,
+    13→    13→  Phone,
+    14→    14→  RotateCcw,
+    15→    15→  Send,
+    16→    16→  Video,
+    17→    17→  Wallet,
+    18→    18→} from "lucide-react";
+    19→    19→import { toast } from "sonner";
+    20→    20→import { consultationsService } from "@/services/consultations";
+    21→    21→import { useMe } from "@/hooks/useSession";
+    22→    22→import { useAppStore, useCurrentScreen } from "@/store/app";
+    23→    23→import { t } from "@/i18n";
+    24→    24→import { trackEvent } from "@/lib/analytics";
+    25→    25→import { ApiError, errorMessage } from "@/lib/http";
+    26→    26→import { formatINR, formatTimeIN } from "@/lib/money";
+    27→    27→import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
+    28→    28→import { ErrorState } from "@/components/shared/ErrorState";
+    29→    29→import { PageSkeleton } from "@/components/shared/PageSkeleton";
+    30→    30→import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+    31→    31→import { Button } from "@/components/ui/button";
+    32→    32→import { Textarea } from "@/components/ui/textarea";
+    33→    33→import {
+    34→    34→  AlertDialog,
+    35→    35→  AlertDialogAction,
+    36→    36→  AlertDialogCancel,
+    37→    37→  AlertDialogContent,
+    38→    38→  AlertDialogDescription,
+    39→    39→  AlertDialogFooter,
+    40→    40→  AlertDialogHeader,
+    41→    41→  AlertDialogTitle,
+    42→    42→} from "@/components/ui/alert-dialog";
+    43→    43→import {
+    44→    44→  Sheet,
+    45→    45→  SheetContent,
+    46→    46→  SheetDescription,
+    47→    47→  SheetFooter,
+    48→    48→  SheetHeader,
+    49→    49→  SheetTitle,
+    50→    50→} from "@/components/ui/sheet";
+    51→    51→import type { ConsultationDTO, MessageDTO } from "@/types/models";
+    52→    52→import { useConsultationSocket, type SocketStatus } from "./useConsultationSocket";
+    53→    53→
+    54→    54→/**
+    55→    55→ * Consultation chat — full-height real-time surface. Everything billing-
+    56→    56→ * critical stays visible: rate, running (approximate) charge, wallet
+    57→    57→ * balance. Final amount is server-settled when the user ends.
+    58→    58→ */
+    59→    59→
+    60→    60→interface PendingMessage {
+    61→    61→  localId: string;
+    62→    62→  content: string;
+    63→    63→  status: "pending" | "failed";
+    64→    64→}
+    65→    65→
+    66→    66→function initials(name: string) {
+    67→    67→  return name
+    68→    68→    .split(/\s+/)
+    69→    69→    .map((p) => p[0])
+    70→    70→    .slice(0, 2)
+    71→    71→    .join("")
+    72→    72→    .toUpperCase();
+    73→    73→}
+    74→    74→
+    75→    75→function mmss(seconds: number): string {
+    76→    76→  const m = Math.floor(seconds / 60);
+    77→    77→  const s = seconds % 60;
+    78→    78→  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    79→    79→}
+    80→    80→
+    81→    81→const MODE_ICON = { chat: MessageCircle, audio: Phone, video: Video } as const;
+    82→    82→
+    83→    83→export default function ConsultationChatScreen() {
+    84→    84→  const screen = useCurrentScreen();
+    85→    85→  const id = screen.params?.id;
+    86→    86→  const push = useAppStore((s) => s.push);
+    87→    87→  const pop = useAppStore((s) => s.pop);
+    88→    88→  const replace = useAppStore((s) => s.replace);
+    89→    89→  const me = useMe();
+    90→    90→  const qc = useQueryClient();
+    91→    91→
+    92→    92→  const [pending, setPending] = useState<PendingMessage[]>([]);
+    93→    93→  const [draft, setDraft] = useState("");
+    94→    94→  const [typing, setTyping] = useState(false);
+    95→    95→  const [now, setNow] = useState(() => Date.now());
+    96→    96→  const [endOpen, setEndOpen] = useState(false);
+    97→    97→  const [backOpen, setBackOpen] = useState(false);
+    98→    98→  const [insufficientOpen, setInsufficientOpen] = useState(false);
+    99→    99→  const [ending, setEnding] = useState(false);
+   100→   100→
+   101→   101→  const query = useQuery({
+   102→   102→    queryKey: ["consultation", id],
+   103→   103→    queryFn: () => consultationsService.get(id!),
+   104→   104→    enabled: !!id,
+   105→   105→  });
+   106→   106→
+   107→   107→  const consultation = query.data?.consultation;
+   108→   108→  const serverMessages: MessageDTO[] = useMemo(() => query.data?.messages ?? [], [query.data]);
+   109→   109→  const isActive = consultation?.status === "active";
+   110→   110→  const rate = consultation?.ratePerMinute ?? 0;
+   111→   111→  const balance = me.data?.wallet.balance ?? 0;
+   112→   112→
+   113→   113→  const scrollRef = useRef<HTMLDivElement>(null);
+   114→   114→  const lastCountRef = useRef(0);
+   115→   115→
+   116→   116→  // append a server message to the query cache (dedupe by id)
+   117→   117→  const appendMessage = useCallback(
+   118→   118→    (m: MessageDTO) => {
+   119→   119→      if (!id) return;
+   120→   120→      qc.setQueryData<{ consultation: ConsultationDTO; messages: MessageDTO[] }>(
+   121→   121→        ["consultation", id],
+   122→   122→        (old) => {
+   123→   123→          if (!old) return old;
+   124→   124→          if (old.messages.some((x) => x.id === m.id)) return old;
+   125→   125→          return { ...old, messages: [...old.messages, m] };
+   126→   126→        }
+   127→   127→      );
+   128→   128→    },
+   129→   129→    [qc, id]
+   130→   130→  );
+   131→   131→
+   132→   132→  const markAllUserRead = useCallback(
+   133→   133→    (readAt: string) => {
+   134→   134→      if (!id) return;
+   135→   135→      qc.setQueryData<{ consultation: ConsultationDTO; messages: MessageDTO[] }>(
+   136→   136→        ["consultation", id],
+   137→   137→        (old) =>
+   138→   138→          old
+   139→   139→            ? {
+   140→   140→                ...old,
+   141→   141→                messages: old.messages.map((x) =>
+   142→   142→                  x.senderRole === "user" && !x.readAt ? { ...x, readAt } : x
+   143→   143→                ),
+   144→   144→              }
+   145→   145→            : old
+   146→   146→      );
+   147→   147→    },
+   148→   148→    [qc, id]
+   149→   149→  );
+   150→   150→
+   151→   151→  // ------------------------------------------------------------- realtime
+   152→   152→  const { status } = useConsultationSocket(
+   153→   153→    id,
+   154→   154→    me.data?.user.id,
+   155→   155→    !!id && !!me.data?.user.id && (isActive ?? false),
+   156→   156→    {
+   157→   157→      onMessage: (m) => {
+   158→   158→        appendMessage(m);
+   159→   159→        if (m.senderRole === "astrologer" && id) {
+   160→   160→          void consultationsService.markRead(id).catch(() => {});
+   161→   161→        }
+   162→   162→      },
+   163→   163→      onTyping: (isTyping) => setTyping(isTyping),
+   164→   164→      onRead: (readAt) => markAllUserRead(readAt),
+   165→   165→      onEnded: () => {
+   166→   166→        void qc.invalidateQueries({ queryKey: ["consultation", id] });
+   167→   167→        void qc.invalidateQueries({ queryKey: ["me"] });
+   168→   168→        void qc.invalidateQueries({ queryKey: ["consultations"] });
+   169→   169→      },
+   170→   170→    }
+   171→   171→  );
+   172→   172→
+   173→   173→  // mark astrologer messages read while the chat is open
+   174→   174→  useEffect(() => {
+   175→   175→    if (isActive && id && query.data) {
+   176→   176→      void consultationsService.markRead(id).catch(() => {});
+   177→   177→    }
+   178→   178→  }, [isActive, id, query.data]);
+   179→   179→
+   180→   180→  // billing meter ticks every second while active
+   181→   181→  useEffect(() => {
+   182→   182→    if (!isActive) return;
+   183→   183→    const timer = setInterval(() => setNow(Date.now()), 1000);
+   184→   184→    return () => clearInterval(timer);
+   185→   185→  }, [isActive]);
+   186→   186→
+   187→   187→  // typing indicator safety clear (6s without events)
+   188→   188→  useEffect(() => {
+   189→   189→    if (!typing) return;
+   190→   190→    const timer = setTimeout(() => setTyping(false), 6000);
+   191→   191→    return () => clearTimeout(timer);
+   192→   192→  }, [typing]);
+   193→   193→
+   194→   194→  // auto-scroll when new messages arrive
+   195→   195→  useEffect(() => {
+   196→   196→    const total = serverMessages.length + pending.length + (typing ? 1 : 0);
+   197→   197→    if (total === lastCountRef.current) return;
+   198→   198→    lastCountRef.current = total;
+   199→   199→    const el = scrollRef.current;
+   200→   200→    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+   201→   201→  }, [serverMessages.length, pending.length, typing]);
+   202→   202→
+   203→   203→  // ------------------------------------------------------------ actions
+   204→   204→  const sendMessage = useCallback(
+   205→   205→    async (content: string) => {
+   206→   206→      const text = content.trim();
+   207→   207→      if (!text || !id || !isActive) return;
+   208→   208→      const localId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+   209→   209→      setPending((p) => [...p, { localId, content: text, status: "pending" }]);
+   210→   210→      setDraft("");
+   211→   211→      try {
+   212→   212→        const { message } = await consultationsService.sendMessage(id, text);
+   213→   213→        setPending((p) => p.filter((x) => x.localId !== localId));
+   214→   214→        appendMessage(message);
+   215→   215→      } catch (err) {
+   216→   216→        setPending((p) => p.map((x) => (x.localId === localId ? { ...x, status: "failed" } : x)));
+   217→   217→        setDraft(text); // never lose typed content
+   218→   218→        if (err instanceof ApiError && err.code === "insufficient_balance") {
+   219→   219→          setInsufficientOpen(true);
+   220→   220→          void qc.invalidateQueries({ queryKey: ["me"] });
+   221→   221→        } else {
+   222→   222→          toast.error(errorMessage(err));
+   223→   223→        }
+   224→   224→      }
+   225→   225→    },
+   226→   226→    [id, isActive, appendMessage, qc]
+   227→   227→  );
+   228→   228→
+   229→   229→  const retryMessage = useCallback(
+   230→   230→    async (m: PendingMessage) => {
+   231→   231→      if (!id) return;
+   232→   232→      setPending((p) => p.map((x) => (x.localId === m.localId ? { ...x, status: "pending" } : x)));
+   233→   233→      try {
+   234→   234→        const { message } = await consultationsService.sendMessage(id, m.content);
+   235→   235→        setPending((p) => p.filter((x) => x.localId !== m.localId));
+   236→   236→        appendMessage(message);
+   237→   237→      } catch (err) {
+   238→   238→        setPending((p) => p.map((x) => (x.localId === m.localId ? { ...x, status: "failed" } : x)));
+   239→   239→        if (err instanceof ApiError && err.code === "insufficient_balance") {
+   240→   240→          setInsufficientOpen(true);
+   241→   241→          void qc.invalidateQueries({ queryKey: ["me"] });
+   242→   242→        } else {
+   243→   243→          toast.error(errorMessage(err));
+   244→   244→        }
+   245→   245→      }
+   246→   246→    },
+   247→   247→    [id, appendMessage, qc]
+   248→   248→  );
+   249→   249→
+   250→   250→  const endConsultation = useCallback(async () => {
+   251→   251→    if (!id || !isActive || ending) return;
+   252→   252→    setEnding(true);
+   253→   253→    try {
+   254→   254→      await consultationsService.end(id);
+   255→   255→      trackEvent("consultation_completed");
+   256→   256→      void qc.invalidateQueries({ queryKey: ["me"] });
+   257→   257→      void qc.invalidateQueries({ queryKey: ["consultations"] });
+   258→   258→      void qc.invalidateQueries({ queryKey: ["consultation", id] });
+   259→   259→      replace({ id: "consultation.details", params: { id } });
+   260→   260→    } catch (err) {
+   261→   261→      toast.error(errorMessage(err));
+   262→   262→      setEnding(false);
+   263→   263→    }
+   264→   264→  }, [id, isActive, ending, qc, replace]);
+   265→   265→
+   266→   266→  const handleBack = () => {
+   267→   267→    if (isActive) {
+   268→   268→      setBackOpen(true);
+   269→   269→      return;
+   270→   270→    }
+   271→   271→    pop();
+   272→   272→  };
+   273→   273→
+   274→   274→  // ------------------------------------------------------------ render
+   275→   275→  if (!id) {
+   276→   276→    return (
+   277→   277→      <ScreenScaffold bare>
+   278→   278→        <ErrorState title={t("common.errorGeneric")} />
+   279→   279→      </ScreenScaffold>
+   280→   280→    );
+   281→   281→  }
+   282→   282→
+   283→   283→  if (query.isLoading) {
+   284→   284→    return (
+   285→   285→      <ScreenScaffold bare>
+   286→   286→        <PageSkeleton variant="list" />
+   287→   287→      </ScreenScaffold>
+   288→   288→    );
+   289→   289→  }
+   290→   290→
+   291→   291→  if (query.isError || !consultation) {
+   292→   292→    return (
+   293→   293→      <ScreenScaffold bare>
+   294→   294→        <ErrorState title={t("astrologers.notFoundTitle")} onRetry={() => query.refetch()} />
+   295→   295→      </ScreenScaffold>
+   296→   296→    );
+   297→   297→  }
+   298→   298→
+   299→   299→  const a = consultation.astrologer;
+   300→   300→  const ModeIcon = MODE_ICON[(consultation.mode as keyof typeof MODE_ICON) ?? "chat"] ?? MessageCircle;
+   301→   301→
+   302→   302→  const startedMs = consultation.startedAt ? new Date(consultation.startedAt).getTime() : null;
+   303→   303→  const elapsedSec =
+   304→   304→    isActive && startedMs
+   305→   305→      ? Math.max(0, Math.floor((now - startedMs) / 1000))
+   306→   306→      : consultation.durationSeconds ?? 0;
+   307→   307→  const runningCharge = rate > 0 ? Math.max(1, Math.ceil(elapsedSec / 60)) * rate : 0;
+   308→   308→
+   309→   309→  return (
+   310→   310→    <ScreenScaffold bare>
+   311→   311→      {/* ------------------------------------------------------------ header */}
+   312→   312→      <header className="shrink-0 border-b bg-background/95 backdrop-blur-md">
+   313→   313→        <div className="flex items-center gap-2 px-3 pt-2.5 pb-2">
+   314→   314→          <button
+   315→   315→            type="button"
+   316→   316→            onClick={handleBack}
+   317→   317→            aria-label={t("common.back")}
+   318→   318→            className="press flex h-11 w-11 items-center justify-center rounded-full text-foreground hover:bg-secondary"
+   319→   319→          >
+   320→   320→            <ChevronLeft className="h-5 w-5" />
+   321→   321→          </button>
+   322→   322→          <button
+   323→   323→            type="button"
+   324→   324→            onClick={() => push({ id: "astrologers.profile", params: { id: a.id } })}
+   325→   325→            className="press flex min-w-0 flex-1 items-center gap-2.5 text-left"
+   326→   326→            aria-label={`${a.displayName} — ${t("astrologers.viewProfile")}`}
+   327→   327→          >
+   328→   328→            <div className="relative shrink-0">
+   329→   329→              <Avatar className="h-9 w-9 rounded-xl border">
+   330→   330→                <AvatarImage src={a.photoUrl ?? undefined} alt={a.displayName} />
+   331→   331→                <AvatarFallback className="rounded-xl bg-secondary text-[12px] font-semibold text-secondary-foreground">
+   332→   332→                  {initials(a.displayName)}
+   333→   333→                </AvatarFallback>
+   334→   334→              </Avatar>
+   335→   335→              {a.onlineStatus === "online" ? (
+   336→   336→                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-success" aria-label={t("common.online")} />
+   337→   337→              ) : null}
+   338→   338→            </div>
+   339→   339→            <div className="min-w-0 flex-1">
+   340→   340→              <div className="flex items-center gap-1.5">
+   341→   341→                <p className="truncate text-[14px] font-semibold leading-tight text-foreground">
+   342→   342→                  {a.displayName}
+   343→   343→                </p>
+   344→   344→                <ModeIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+   345→   345→              </div>
+   346→   346→              <p className="flex items-center gap-1 truncate text-[10.5px] leading-snug text-muted-foreground">
+   347→   347→                <FlaskConical className="h-3 w-3 shrink-0" aria-hidden />
+   348→   348→                {t("consultation.demoAstrologer")}
+   349→   349→              </p>
+   350→   350→            </div>
+   351→   351→          </button>
+   352→   352→          <span className="shrink-0 whitespace-nowrap rounded-full bg-primary/8 px-2.5 py-1 text-[12px] font-semibold text-primary">
+   353→   353→            {formatINR(rate)}
+   354→   354→            <span className="font-normal text-primary/70">{t("common.perMinute")}</span>
+   355→   355→          </span>
+   356→   356→          {isActive ? (
+   357→   357→            <Button
+   358→   358→              variant="outline"
+   359→   359→              size="sm"
+   360→   360→              className="h-9 rounded-full px-3.5 text-[12.5px] font-medium text-destructive press"
+   361→   361→              onClick={() => setEndOpen(true)}
+   362→   362→            >
+   363→   363→              {t("consultation.end")}
+   364→   364→            </Button>
+   365→   365→          ) : null}
+   366→   366→        </div>
+   367→   367→
+   368→   368→        {/* -------------------------------------------------- billing meter */}
+   369→   369→        <div className="border-t border-warning/30 bg-warning/10 px-4 py-2.5" aria-live="off">
+   370→   370→          <div className="flex items-center justify-between gap-3 text-[12.5px]">
+   371→   371→            <span className="text-muted-foreground">
+   372→   372→              {t("consultation.runningDuration")}{" "}
+   373→   373→              <span className="font-semibold tabular-nums text-foreground">{mmss(elapsedSec)}</span>
+   374→   374→            </span>
+   375→   375→            <span className="text-muted-foreground">
+   376→   376→              {t("consultation.runningCharge")}{" "}
+   377→   377→              <span className="font-semibold text-foreground">
+   378→   378→                {isActive ? "≈ " : ""}
+   379→   379→                {formatINR(isActive ? runningCharge : consultation.totalAmount ?? 0)}
+   380→   380→              </span>
+   381→   381→            </span>
+   382→   382→            <span className="inline-flex items-center gap-1 text-muted-foreground">
+   383→   383→              <Wallet className="h-3.5 w-3.5" aria-hidden />
+   384→   384→              {formatINR(balance)}
+   385→   385→            </span>
+   386→   386→          </div>
+   387→   387→          <p className="mt-0.5 text-[10.5px] leading-snug text-muted-foreground">
+   388→   388→            {isActive
+   389→   389→              ? t("consultation.approxNote")
+   390→   390→              : `${t("consultation.ended")} — ${formatINR(consultation.totalAmount ?? 0)}`}
+   391→   391→          </p>
+   392→   392→        </div>
+   393→   393→
+   394→   394→        {/* --------------------------------------------- connection / ended */}
+   395→   395→        <div className="flex items-center justify-between gap-2 px-4 py-1.5 text-[11.5px]">
+   396→   396→          <ConnectionChip status={isActive ? status : "offline"} />
+   397→   397→          {!isActive ? (
+   398→   398→            <button
+   399→   399→              type="button"
+   400→   400→              onClick={() => push({ id: "consultation.details", params: { id } })}
+   401→   401→              className="press text-[11.5px] font-medium text-primary"
+   402→   402→            >
+   403→   403→              {t("consultation.viewDetails")}
+   404→   404→            </button>
+   405→   405→          ) : null}
+   406→   406→        </div>
+   407→   407→        {isActive && (status === "reconnecting" || status === "offline") ? (
+   408→   408→          <div className="border-t border-warning/30 bg-warning/10 px-4 py-1.5 text-center text-[11.5px] text-foreground/80">
+   409→   409→            {t("consultation.reconnectBanner")}
+   410→   410→          </div>
+   411→   411→        ) : null}
+   412→   412→      </header>
+   413→   413→
+   414→   414→      {/* ------------------------------------------------------------ messages */}
+   415→   415→      <div
+   416→   416→        ref={scrollRef}
+   417→   417→        className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 py-4"
+   418→   418→        role="log"
+   419→   419→        aria-label={t("consultation.chatTitle")}
+   420→   420→      >
+   421→   421→        {!isActive ? (
+   422→   422→          <div className="mx-auto mb-3 max-w-[85%] rounded-xl bg-secondary px-3 py-2 text-center text-[12px] text-secondary-foreground">
+   423→   423→            {t("consultation.endedBanner")}
+   424→   424→          </div>
+   425→   425→        ) : null}
+   426→   426→        <div className="space-y-2.5">
+   427→   427→          {serverMessages.map((m) => (
+   428→   428→            <MessageRow key={m.id} m={m} astrologer={a} />
+   429→   429→          ))}
+   430→   430→          {pending.map((p) => (
+   431→   431→            <PendingRow key={p.localId} p={p} onRetry={() => void retryMessage(p)} />
+   432→   432→          ))}
+   433→   433→          {typing && isActive ? <TypingBubble name={a.displayName} /> : null}
+   434→   434→        </div>
+   435→   435→      </div>
+   436→   436→
+   437→   437→      {/* ------------------------------------------------------------ input */}
+   438→   438→      {isActive ? (
+   439→   439→        <div className="shrink-0 border-t bg-background px-3 py-2.5">
+   440→   440→          <form
+   441→   441→            className="flex items-end gap-2"
+   442→   442→            onSubmit={(e) => {
+   443→   443→              e.preventDefault();
+   444→   444→              void sendMessage(draft);
+   445→   445→            }}
+   446→   446→          >
+   447→   447→            <Textarea
+   448→   448→              value={draft}
+   449→   449→              onChange={(e) => setDraft(e.target.value)}
+   450→   450→              onKeyDown={(e) => {
+   451→   451→                if (e.key === "Enter" && !e.shiftKey) {
+   452→   452→                  e.preventDefault();
+   453→   453→                  void sendMessage(draft);
+   454→   454→                }
+   455→   455→              }}
+   456→   456→              placeholder={t("consultation.typeMessage")}
+   457→   457→              aria-label={t("consultation.typeMessage")}
+   458→   458→              rows={1}
+   459→   459→              className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl bg-card py-2.5 text-[13.5px]"
+   460→   460→            />
+   461→   461→            <Button
+   462→   462→              type="submit"
+   463→   463→              size="icon"
+   464→   464→              className="h-11 w-11 shrink-0 rounded-full press"
+   465→   465→              disabled={!draft.trim() || pending.some((p) => p.status === "pending")}
+   466→   466→              aria-label={t("consultation.send")}
+   467→   467→            >
+   468→   468→              <Send className="h-4.5 w-4.5" aria-hidden />
+   469→   469→            </Button>
+   470→   470→          </form>
+   471→   471→        </div>
+   472→   472→      ) : (
+   473→   473→        <div className="shrink-0 border-t bg-background px-4 py-3">
+   474→   474→          <Button
+   475→   475→            variant="outline"
+   476→   476→            className="h-11 w-full rounded-full press"
+   477→   477→            onClick={() => push({ id: "consultation.details", params: { id } })}
+   478→   478→          >
+   479→   479→            {t("consultation.viewDetails")}
+   480→   480→          </Button>
+   481→   481→        </div>
+   482→   482→      )}
+   483→   483→
+   484→   484→      {/* ------------------------------------------------------- end dialog */}
+   485→   485→      <AlertDialog open={endOpen} onOpenChange={setEndOpen}>
+   486→   486→        <AlertDialogContent className="mx-auto max-w-[340px] rounded-3xl">
+   487→   487→          <AlertDialogHeader>
+   488→   488→            <AlertDialogTitle className="font-display text-[17px] font-semibold">
+   489→   489→              {t("consultation.endConfirmTitle")}
+   490→   490→            </AlertDialogTitle>
+   491→   491→            <AlertDialogDescription className="text-[13px] leading-relaxed">
+   492→   492→              {t("consultation.endConfirmBody")}
+   493→   493→            </AlertDialogDescription>
+   494→   494→          </AlertDialogHeader>
+   495→   495→          <AlertDialogFooter className="flex-row gap-2">
+   496→   496→            <AlertDialogCancel className="h-11 flex-1 rounded-full">
+   497→   497→              {t("consultation.endConfirmNo")}
+   498→   498→            </AlertDialogCancel>
+   499→   499→            <AlertDialogAction
+   500→   500→              className="h-11 flex-1 rounded-full press"
+   501→   501→              onClick={(e) => {
+   502→   502→                e.preventDefault();
+   503→   503→                setEndOpen(false);
+   504→   504→                void endConsultation();
+   505→   505→              }}
+   506→   506→            >
+   507→   507→              {ending ? t("common.loading") : t("consultation.endConfirmYes")}
+   508→   508→            </AlertDialogAction>
+   509→   509→          </AlertDialogFooter>
+   510→   510→        </AlertDialogContent>
+   511→   511→      </AlertDialog>
+   512→   512→
+   513→   513→      {/* ------------------------------------------------------- back dialog */}
+   514→   514→      <AlertDialog open={backOpen} onOpenChange={setBackOpen}>
+   515→   515→        <AlertDialogContent className="mx-auto max-w-[340px] rounded-3xl">
+   516→   516→          <AlertDialogHeader>
+   517→   517→            <AlertDialogTitle className="font-display text-[17px] font-semibold">
+   518→   518→              {t("consultation.backTitle")}
+   519→   519→            </AlertDialogTitle>
+   520→   520→            <AlertDialogDescription className="text-[13px] leading-relaxed">
+   521→   521→              {t("consultation.backBody", { rate: formatINR(rate) })}
+   522→   522→            </AlertDialogDescription>
+   523→   523→          </AlertDialogHeader>
+   524→   524→          <AlertDialogFooter className="flex-row gap-2">
+   525→   525→            <AlertDialogCancel className="h-11 flex-1 rounded-full">
+   526→   526→              {t("consultation.endConfirmNo")}
+   527→   527→            </AlertDialogCancel>
+   528→   528→            <AlertDialogAction
+   529→   529→              className="h-11 flex-1 rounded-full press"
+   530→   530→              onClick={(e) => {
+   531→   531→                e.preventDefault();
+   532→   532→                setBackOpen(false);
+   533→   533→                void endConsultation();
+   534→   534→              }}
+   535→   535→            >
+   536→   536→              {t("consultation.backEnd")}
+   537→   537→            </AlertDialogAction>
+   538→   538→            <AlertDialogAction
+   539→   539→              className="h-11 flex-1 rounded-full press"
+   540→   540→              onClick={(e) => {
+   541→   541→                e.preventDefault();
+   542→   542→                setBackOpen(false);
+   543→   543→                pop();
+   544→   544→              }}
+   545→   545→            >
+   546→   546→              {t("consultation.backKeep")}
+   547→   547→            </AlertDialogAction>
+   548→   548→          </AlertDialogFooter>
+   549→   549→        </AlertDialogContent>
+   550→   550→      </AlertDialog>
+   551→   551→
+   552→   552→      {/* ------------------------------------------------- insufficient sheet */}
+   553→   553→      <Sheet open={insufficientOpen} onOpenChange={setInsufficientOpen}>
+   554→   554→        <SheetContent
+   555→   555→          side="bottom"
+   556→   556→          className="mx-auto max-w-[430px] gap-0 rounded-t-3xl px-5 pb-5 pt-5"
+   557→   557→        >
+   558→   558→          <SheetHeader className="space-y-1 px-0 text-left">
+   559→   559→            <SheetTitle className="font-display text-[17px] font-semibold">
+   560→   560→              {t("consultation.insufficientTitle")}
+   561→   561→            </SheetTitle>
+   562→   562→            <SheetDescription className="text-[13px] leading-relaxed">
+   563→   563→              {t("consultation.insufficientBody")}
+   564→   564→            </SheetDescription>
+   565→   565→          </SheetHeader>
+   566→   566→          <SheetFooter className="mt-4 flex-row gap-2 px-0">
+   567→   567→            <Button
+   568→   568→              variant="outline"
+   569→   569→              className="h-11 flex-1 rounded-full press"
+   570→   570→              onClick={() => setInsufficientOpen(false)}
+   571→   571→            >
+   572→   572→              {t("consultation.closeLabel")}
+   573→   573→            </Button>
+   574→   574→            <Button
+   575→   575→              className="h-11 flex-1 rounded-full press"
+   576→   576→              onClick={() => {
+   577→   577→                setInsufficientOpen(false);
+   578→   578→                push({ id: "wallet.recharge" });
+   579→   579→              }}
+   580→   580→            >
+   581→   581→              <Wallet className="mr-1.5 h-4 w-4" aria-hidden />
+   582→   582→              {t("consultation.insufficientCta")}
+   583→   583→            </Button>
+   584→   584→          </SheetFooter>
+   585→   585→        </SheetContent>
+   586→   586→      </Sheet>
+   587→   587→    </ScreenScaffold>
+   588→   588→  );
+   589→   589→}
+   590→   590→
+   591→   591→// ---------------------------------------------------------------- pieces
+   592→   592→
+   593→   593→function ConnectionChip({ status }: { status: SocketStatus }) {
+   594→   594→  const map: Record<SocketStatus, { label: string; dot: string; text: string }> = {
+   595→   595→    connected: { label: t("consultation.connected"), dot: "bg-success", text: "text-success" },
+   596→   596→    connecting: { label: t("consultation.connecting"), dot: "bg-muted-foreground/50", text: "text-muted-foreground" },
+   597→   597→    reconnecting: { label: t("consultation.reconnecting"), dot: "bg-warning", text: "text-warning" },
+   598→   598→    offline: { label: t("consultation.offline"), dot: "bg-muted-foreground/50", text: "text-muted-foreground" },
+   599→   599→  };
+   600→   600→  const s = map[status];
+   601→   601→  return (
+   602→   602→    <span className={`inline-flex items-center gap-1.5 ${s.text}`} role="status">
+   603→   603→      <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} aria-hidden />
+   604→   604→      {s.label}
+   605→   605→    </span>
+   606→   606→  );
+   607→   607→}
+   608→   608→
+   609→   609→function MessageRow({ m, astrologer }: { m: MessageDTO; astrologer: { displayName: string; photoUrl: string | null } }) {
+   610→   610→  if (m.senderRole === "system") {
+   611→   611→    return (
+   612→   612→      <p className="mx-auto max-w-[85%] rounded-xl bg-secondary px-3 py-1.5 text-center text-[11.5px] leading-relaxed text-muted-foreground">
+   613→   613→        {m.content}
+   614→   614→      </p>
+   615→   615→    );
+   616→   616→  }
+   617→   617→
+   618→   618→  const isUser = m.senderRole === "user";
+   619→   619→  return (
+   620→   620→    <motion.div
+   621→   621→      initial={{ opacity: 0, y: 6 }}
+   622→   622→      animate={{ opacity: 1, y: 0 }}
+   623→   623→      transition={{ duration: 0.15 }}
+   624→   624→      className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+   625→   625→    >
+   626→   626→      <div className={`flex max-w-[82%] items-end gap-1.5 ${isUser ? "flex-row-reverse" : ""}`}>
+   627→   627→        {!isUser ? (
+   628→   628→          <Avatar className="h-7 w-7 rounded-full border">
+   629→   629→            <AvatarImage src={astrologer.photoUrl ?? undefined} alt="" />
+   630→   630→            <AvatarFallback className="rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
+   631→   631→              {initials(astrologer.displayName)}
+   632→   632→            </AvatarFallback>
+   633→   633→          </Avatar>
+   634→   634→        ) : null}
+   635→   635→        <div className="min-w-0">
+   636→   636→          <div
+   637→   637→            className={
+   638→   638→              isUser
+   639→   639→                ? "rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-[13.5px] leading-relaxed text-primary-foreground"
+   640→   640→                : "rounded-2xl rounded-bl-md border bg-card px-3.5 py-2.5 text-[13.5px] leading-relaxed text-foreground"
+   641→   641→            }
+   642→   642→          >
+   643→   643→            {m.content}
+   644→   644→          </div>
+   645→   645→          <div
+   646→   646→            className={`mt-1 flex items-center gap-1 text-[10.5px] text-muted-foreground ${isUser ? "justify-end" : ""}`}
+   647→   647→          >
+   648→   648→            <time dateTime={m.createdAt}>{formatTimeIN(m.createdAt)}</time>
+   649→   649→            {isUser ? (
+   650→   650→              m.readAt ? (
+   651→   651→                <CheckCheck className="h-3.5 w-3.5 text-success" aria-label={t("consultation.readAria")} />
+   652→   652→              ) : (
+   653→   653→                <Check className="h-3.5 w-3.5" aria-label={t("consultation.sentAria")} />
+   654→   654→              )
+   655→   655→            ) : null}
+   656→   656→          </div>
+   657→   657→        </div>
+   658→   658→      </div>
+   659→   659→    </motion.div>
+   660→   660→  );
+   661→   661→}
+   662→   662→
+   663→   663→function PendingRow({ p, onRetry }: { p: PendingMessage; onRetry: () => void }) {
+   664→   664→  return (
+   665→   665→    <div className="flex justify-end">
+   666→   666→      <div className="flex max-w-[82%] items-end gap-1.5 flex-row-reverse">
+   667→   667→        <div className="min-w-0">
+   668→   668→          <div
+   669→   669→            className={`rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-[13.5px] leading-relaxed text-primary-foreground ${
+   670→   670→              p.status === "pending" ? "opacity-60" : "border-2 border-warning bg-warning/15"
+   671→   671→            }`}
+   672→   672→          >
+   673→   673→            {p.content}
+   674→   674→          </div>
+   675→   675→          <div className="mt-1 flex items-center justify-end gap-1.5 text-[10.5px] text-muted-foreground">
+   676→   676→            {p.status === "pending" ? (
+   677→   677→              <>
+   678→   678→                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+   679→   679→                {t("consultation.sentAria")}…
+   680→   680→              </>
+   681→   681→            ) : (
+   682→   682→              <>
+   683→   683→                <span className="text-warning">{t("consultation.sendFailed")}</span>
+   684→   684→                <button
+   685→   685→                  type="button"
+   686→   686→                  onClick={onRetry}
+   687→   687→                  className="press inline-flex h-6 w-6 items-center justify-center rounded-full text-foreground hover:bg-secondary"
+   688→   688→                  aria-label={t("consultation.retrySend")}
+   689→   689→                >
+   690→   690→                  <RotateCcw className="h-3.5 w-3.5" />
+   691→   691→                </button>
+   692→   692→              </>
+   693→   693→            )}
+   694→   694→          </div>
+   695→   695→        </div>
+   696→   696→      </div>
+   697→   697→    </div>
+   698→   698→  );
+   699→   699→}
+   700→   700→
+   701→   701→function TypingBubble({ name }: { name: string }) {
+   702→   702→  return (
+   703→   703→    <div className="flex items-end gap-1.5">
+   704→   704→      <span className="flex items-center gap-1 rounded-2xl rounded-bl-md border bg-card px-3.5 py-3" aria-label={t("consultation.typing", { name })}>
+   705→   705→        {[0, 1, 2].map((i) => (
+   706→   706→          <motion.span
+   707→   707→            key={i}
+   708→   708→            className="h-1.5 w-1.5 rounded-full bg-muted-foreground"
+   709→   709→            animate={{ opacity: [0.35, 1, 0.35] }}
+   710→   710→            transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18 }}
+   711→   711→          />
+   712→   712→        ))}
+   713→   713→      </span>
+   714→   714→    </div>
+   715→   715→  );
+   716→   716→}
+   717→   717→

@@ -70,6 +70,7 @@ export default function ChartScreen() {
       title={t("astrology.chart")}
       subtitle={t("astrology.chartSubtitle")}
       right={isDemo ? <DemoDataBadge /> : undefined}
+      width="default"
     >
       {chart.isLoading || !profileId ? (
         <PageSkeleton variant="chart" />
@@ -82,6 +83,8 @@ export default function ChartScreen() {
         />
       ) : chart.data && divisional ? (
         <div className="space-y-6 pt-1">
+          {/* ------------------------- chart panel — centers as a reading column on md+ */}
+          <div className="space-y-6 md:mx-auto md:max-w-[560px]">
           {/* ------------------------------------------------ D1 / D9 switch */}
           <Segmented<Variant>
             ariaLabel={t("astrology.chart")}
@@ -119,6 +122,7 @@ export default function ChartScreen() {
               {t("astrology.tapHouseHint")}
             </p>
           </motion.section>
+          </div>
 
           {/* ------------------------------------------------ legend */}
           <section aria-label={t("astrology.legend")}>
@@ -154,7 +158,7 @@ export default function ChartScreen() {
 
       {/* ------------------------------------------------ house detail sheet */}
       <Sheet open={activeHouse !== null} onOpenChange={(open) => !open && setActiveHouse(null)}>
-        <SheetContent side="bottom" className="mx-auto max-h-[80vh] w-full max-w-[430px] rounded-t-3xl px-5 pb-8">
+        <SheetContent side="bottom" className="mx-auto max-h-[80vh] w-full max-w-[430px] rounded-t-3xl px-5 pb-8 md:max-w-lg">
           {activeHouseData ? (
             <>
               <SheetHeader className="pb-0">

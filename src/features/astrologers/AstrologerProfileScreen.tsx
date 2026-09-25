@@ -62,6 +62,91 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
+/**
+ * Consultation start buttons — shared by the mobile sticky bar and the
+ * desktop side panel so the two stay visually in sync.
+ */
+function StartActions({
+  startable,
+  awayHours,
+  modes,
+  onMode,
+  onBook,
+}: {
+  startable: boolean;
+  awayHours: number | null;
+  modes: string[];
+  onMode: (mode: ConsultationMode) => void;
+  onBook: () => void;
+}) {
+  if (startable) {
+    return (
+      <div className="flex items-center gap-2">
+        {modes.includes("chat") ? (
+          <Button className="h-11 flex-1 rounded-full press" onClick={() => onMode("chat")}>
+            <MessageCircle className="mr-1.5 h-4 w-4" aria-hidden />
+            {t("astrologers.startChat")}
+          </Button>
+        ) : null}
+        {modes.includes("audio") ? (
+          <Button
+            variant="outline"
+            className="h-11 flex-1 rounded-full bg-secondary/50 press hover:bg-secondary"
+            onClick={() => onMode("audio")}
+            aria-label={t("astrologers.startAudio")}
+          >
+            <Phone className="h-4 w-4" aria-hidden />
+            <span className="sr-only">{t("astrologers.startAudio")}</span>
+          </Button>
+        ) : null}
+        {modes.includes("video") ? (
+          <Button
+            variant="outline"
+            className="h-11 flex-1 rounded-full bg-secondary/50 press hover:bg-secondary"
+            onClick={() => onMode("video")}
+            aria-label={t("astrologers.startVideo")}
+          >
+            <Video className="h-4 w-4" aria-hidden />
+            <span className="sr-only">{t("astrologers.startVideo")}</span>
+          </Button>
+        ) : null}
+        <Button
+          variant="outline"
+          className="h-11 rounded-full bg-secondary/50 press hover:bg-secondary"
+          aria-label={t("astrologers.book")}
+          onClick={onBook}
+        >
+          <CalendarClock className="h-4 w-4" aria-hidden />
+          <span className="sr-only">{t("astrologers.book")}</span>
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2 px-2 py-1">
+      <p className="text-center text-[12.5px] font-medium text-muted-foreground">
+        {awayHours
+          ? t("astrologers.availableIn", { hours: awayHours })
+          : t("astrologers.offlineNote")}
+      </p>
+      <div className="flex items-center gap-2">
+        <Button disabled className="h-11 flex-1 rounded-full">
+          {t("astrologers.startWhenOnline")}
+        </Button>
+        <Button
+          variant="outline"
+          className="h-11 rounded-full press"
+          aria-label={t("astrologers.book")}
+          onClick={onBook}
+        >
+          <CalendarClock className="h-4 w-4" aria-hidden />
+          <span className="sr-only">{t("astrologers.book")}</span>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function AstrologerProfileScreen() {
   const screen = useCurrentScreen();
   const id = screen.params?.id;
@@ -128,6 +213,8 @@ export default function AstrologerProfileScreen() {
 
   return (
     <ScreenScaffold title={a.displayName} contentClassName="pb-32">
+      <div className="lg:grid lg:grid-cols-[1fr_340px] lg:gap-6">
+        <div className="min-w-0">
       {/* ---------------------------------------------------------- profile */}
       <div className="flex items-start gap-4 pt-1">
         <Avatar className="h-20 w-20 rounded-3xl border">
@@ -227,8 +314,10 @@ export default function AstrologerProfileScreen() {
         </p>
       </section>
 
+        </div>
+        <div className="min-w-0">
       {/* ---------------------------------------------------------- pricing */}
-      <section className="mt-6" aria-label={t("consultation.ratePerMinute")}>
+      <section className="mt-6 lg:mt-0" aria-label={t("consultation.ratePerMinute")}>
         <SectionHeader>{t("consultation.ratePerMinute")}</SectionHeader>
         <div className="rounded-2xl border bg-card p-4">
           <div className="flex items-baseline gap-1.5">
@@ -242,6 +331,19 @@ export default function AstrologerProfileScreen() {
           </TrustNote>
         </div>
       </section>
+
+          {/* ---------------------------------------- desktop action panel */}
+          <div className="hidden rounded-2xl border bg-card p-2.5 shadow-sm lg:sticky lg:top-24 lg:mt-4 lg:block">
+            <StartActions
+              startable={startable}
+              awayHours={awayHours}
+              modes={modes}
+              onMode={startConsultation}
+              onBook={() => setBookOpen(true)}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* ---------------------------------------------------------- reviews */}
       <section className="mt-6" aria-label={t("astrologers.reviews")}>
@@ -275,77 +377,18 @@ export default function AstrologerProfileScreen() {
       </section>
 
       {/* ------------------------------------------------------- sticky CTAs */}
-      <div className="sticky bottom-3 z-20 mt-6 rounded-2xl border bg-card/95 p-2.5 shadow-lg shadow-black/5 backdrop-blur-md">
-        {startable ? (
-          <div className="flex items-center gap-2">
-            {modes.includes("chat") ? (
-              <Button
-                className="h-11 flex-1 rounded-full press"
-                onClick={() => startConsultation("chat")}
-              >
-                <MessageCircle className="mr-1.5 h-4 w-4" aria-hidden />
-                {t("astrologers.startChat")}
-              </Button>
-            ) : null}
-            {modes.includes("audio") ? (
-              <Button
-                variant="outline"
-                className="h-11 flex-1 rounded-full bg-secondary/50 press hover:bg-secondary"
-                onClick={() => startConsultation("audio")}
-                aria-label={t("astrologers.startAudio")}
-              >
-                <Phone className="h-4 w-4" aria-hidden />
-                <span className="sr-only">{t("astrologers.startAudio")}</span>
-              </Button>
-            ) : null}
-            {modes.includes("video") ? (
-              <Button
-                variant="outline"
-                className="h-11 flex-1 rounded-full bg-secondary/50 press hover:bg-secondary"
-                onClick={() => startConsultation("video")}
-                aria-label={t("astrologers.startVideo")}
-              >
-                <Video className="h-4 w-4" aria-hidden />
-                <span className="sr-only">{t("astrologers.startVideo")}</span>
-              </Button>
-            ) : null}
-            <Button
-              variant="outline"
-              className="h-11 rounded-full bg-secondary/50 press hover:bg-secondary"
-              aria-label={t("astrologers.book")}
-              onClick={() => setBookOpen(true)}
-            >
-              <CalendarClock className="h-4 w-4" aria-hidden />
-              <span className="sr-only">{t("astrologers.book")}</span>
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-2 px-2 py-1">
-            <p className="text-center text-[12.5px] font-medium text-muted-foreground">
-              {awayHours
-                ? t("astrologers.availableIn", { hours: awayHours })
-                : t("astrologers.offlineNote")}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button disabled className="h-11 flex-1 rounded-full">
-                {t("astrologers.startWhenOnline")}
-              </Button>
-              <Button
-                variant="outline"
-                className="h-11 rounded-full press"
-                aria-label={t("astrologers.book")}
-                onClick={() => setBookOpen(true)}
-              >
-                <CalendarClock className="h-4 w-4" aria-hidden />
-                <span className="sr-only">{t("astrologers.book")}</span>
-              </Button>
-            </div>
-          </div>
-        )}
+      <div className="sticky bottom-3 z-20 mt-6 rounded-2xl border bg-card/95 p-2.5 shadow-lg shadow-black/5 backdrop-blur-md lg:hidden">
+        <StartActions
+          startable={startable}
+          awayHours={awayHours}
+          modes={modes}
+          onMode={startConsultation}
+          onBook={() => setBookOpen(true)}
+        />
       </div>
 
       <Dialog open={bookOpen} onOpenChange={setBookOpen}>
-        <DialogContent className="mx-auto max-w-[340px] rounded-3xl">
+        <DialogContent className="mx-auto max-w-[340px] rounded-3xl md:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display text-[17px] font-semibold">
               {t("astrologers.bookDialogTitle")}

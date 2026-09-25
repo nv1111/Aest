@@ -128,7 +128,7 @@ export default function CompatibilityScreen() {
   }
 
   return (
-    <ScreenScaffold title={t("astrology.checkCompatibility")} subtitle={t("astrology.compatSubtitle")}>
+    <ScreenScaffold title={t("astrology.checkCompatibility")} subtitle={t("astrology.compatSubtitle")} width="narrow">
       <div className="space-y-6 pt-1">
         {/* ------------------------------------------------ person A */}
         <section aria-label={t("astrology.compatPickA")}>

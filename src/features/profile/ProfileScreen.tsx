@@ -65,7 +65,7 @@ export function ProfileScreen() {
   }
   if (me.isError || !me.data?.user) {
     return (
-      <div className="px-4 pt-8">
+      <div className="px-4 pt-8 md:px-6">
         <ErrorState title={t("common.errorGeneric")} onRetry={() => me.refetch()} />
       </div>
     );
@@ -78,26 +78,31 @@ export function ProfileScreen() {
   return (
     <div className="scroll-thin h-full overflow-y-auto">
       {/* ------------------------------------------------ header (no back — tab root) */}
-      <header className="sticky top-0 z-30 bg-background/92 px-4 pb-4 pt-5 backdrop-blur-md">
-        <h1 className="font-display text-[22px] font-semibold leading-tight tracking-tight">{t("profile.title")}</h1>
-        <div className="mt-3 flex items-center gap-3.5">
-          <span
-            aria-hidden
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary font-display text-[20px] font-semibold text-primary-foreground"
-          >
-            {initials}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-[16px] font-semibold leading-snug">{user.name ?? "—"}</p>
-            <p className="truncate text-[12.5px] text-muted-foreground">{phone}</p>
-            <p className="truncate text-[11.5px] text-muted-foreground/80">
-              {t("profile.memberSince", { date: formatDateIN(user.createdAt) })}
-            </p>
+      {/* Responsive: header inner centers in the "default" content column on md+ (mirrors ScreenHeader). */}
+      <header className="sticky top-0 z-30 bg-background/92 px-4 pb-4 pt-5 backdrop-blur-md md:px-6">
+        <div className="mx-auto w-full md:max-w-2xl xl:max-w-3xl">
+          <h1 className="font-display text-[22px] font-semibold leading-tight tracking-tight">{t("profile.title")}</h1>
+          <div className="mt-3 flex items-center gap-3.5">
+            <span
+              aria-hidden
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary font-display text-[20px] font-semibold text-primary-foreground"
+            >
+              {initials}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[16px] font-semibold leading-snug">{user.name ?? "—"}</p>
+              <p className="truncate text-[12.5px] text-muted-foreground">{phone}</p>
+              <p className="truncate text-[11.5px] text-muted-foreground/80">
+                {t("profile.memberSince", { date: formatDateIN(user.createdAt) })}
+              </p>
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="space-y-6 px-4 pb-28">
+      {/* Responsive: content centers in the "default" column on md+ (mirrors ContentColumn); mobile column is untouched. */}
+      <div className="space-y-6 px-4 pb-28 md:px-6 md:pb-12">
+        <div className="mx-auto w-full space-y-6 md:max-w-2xl xl:max-w-3xl">
         {/* ------------------------------------------------ wallet */}
         <section aria-label={t("wallet.title")}>
           <button
@@ -246,6 +251,7 @@ export function ProfileScreen() {
         <p className="pb-2 text-center text-[11px] text-muted-foreground/70">
           {t("common.appName")} · {t("common.tagline")}
         </p>
+        </div>
       </div>
     </div>
   );
@@ -304,7 +310,7 @@ function PersonalInfoDialog({ name }: { name: string }) {
           <ChevronRight className="h-4.5 w-4.5 shrink-0 text-muted-foreground" />
         </button>
       </DialogTrigger>
-      <DialogContent className="max-w-[360px] rounded-3xl">
+      <DialogContent className="max-w-[360px] rounded-3xl sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display text-left">{t("profile.personalInfo")}</DialogTitle>
           <DialogDescription className="text-left">
@@ -373,7 +379,7 @@ function TermsDialog() {
           <ChevronRight className="h-4.5 w-4.5 shrink-0 text-muted-foreground" />
         </button>
       </DialogTrigger>
-      <DialogContent className="max-w-[380px] rounded-3xl">
+      <DialogContent className="max-w-[380px] rounded-3xl sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-left font-display">{t("profile.termsTitle")}</DialogTitle>
         </DialogHeader>
@@ -424,7 +430,7 @@ function LogoutRow() {
           </span>
         </button>
       </AlertDialogTrigger>
-      <AlertDialogContent className="max-w-[360px] rounded-3xl">
+      <AlertDialogContent className="max-w-[360px] rounded-3xl sm:max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle className="font-display">{t("profile.logoutConfirm")}</AlertDialogTitle>
           <AlertDialogDescription>{t("profile.logoutBody")}</AlertDialogDescription>

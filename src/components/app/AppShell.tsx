@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
 import { useMe, useAppOpenedTracking } from "@/hooks/useSession";
 import { useCurrentScreen } from "@/store/app";
 import { ScreenFor, withSuspense } from "./screens";
+import { AppSidebar } from "./AppSidebar";
 import { BottomNav } from "./BottomNav";
 import { Splash } from "./Splash";
 
 /**
- * AppShell — the mobile app frame. One route, client-side navigation.
- * Desktop: centered 430px frame on a calm backdrop, so the product reads as
- * a deliberate mobile app rather than a stretched website.
+ * AppShell — one route, client-side navigation.
+ *
+ * Mobile: the 430px phone frame + bottom navigation (unchanged, as designed).
+ * md+ (tablet / laptop / desktop): a real web application layout — sidebar
+ * navigation (icon rail on tablet, labeled on desktop) + full-width content.
  *
  * The `booted` latch prevents a render oscillation: a logged-out `me` query
  * errors, the onboarding mounts a new observer, refetchOnMount flips status
@@ -39,7 +41,15 @@ export function AppShell() {
     // Otherwise stay in the onboarding flow so birth details are never skipped.
     const user = me.data?.user;
     if (!user || !user.onboardingDone) {
-      return <div className="h-full">{ScreenFor("onboarding", undefined)}</div>;
+      // Onboarding was designed narrow — on large screens it stays a calm,
+      // centered phone-sized card on the quiet backdrop.
+      return (
+        <div className="h-full md:grid md:place-items-center md:bg-[oklch(0.93_0.01_84)]">
+          <div className="h-full w-full max-w-[430px] overflow-hidden bg-background md:h-[94dvh] md:max-h-[880px] md:rounded-[28px] md:border md:border-hairline/70 md:shadow-2xl md:shadow-black/10">
+            {ScreenFor("onboarding", undefined)}
+          </div>
+        </div>
+      );
     }
     return (
       <AnimatePresence mode="wait" initial={false}>
@@ -60,21 +70,9 @@ export function AppShell() {
   const showNav = booted && !!me.data?.user?.onboardingDone;
 
   return (
-    <div className="flex min-h-dvh justify-center bg-[oklch(0.93_0.01_84)]">
-      {/* quiet desktop framing */}
-      <aside className="fixed left-10 top-1/2 hidden -translate-y-1/2 select-none flex-col gap-2 xl:flex">
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-            <Sparkles className="h-4.5 w-4.5" strokeWidth={1.75} />
-          </span>
-          <span className="font-display text-xl font-semibold">Tara</span>
-        </div>
-        <p className="max-w-[210px] text-[12.5px] leading-relaxed text-foreground/60">
-          Jyotish, explained simply. Private by default, clear pricing, honest answers.
-        </p>
-      </aside>
-
-      <div className="relative flex h-dvh w-full max-w-[430px] flex-col overflow-hidden border-x border-hairline/70 bg-background shadow-2xl shadow-black/10">
+    <div className="flex min-h-dvh justify-center bg-[oklch(0.93_0.01_84)] md:justify-start md:bg-background">
+      {showNav ? <AppSidebar /> : null}
+      <div className="relative flex h-dvh w-full max-w-[430px] flex-col overflow-hidden border-x border-hairline/70 bg-background shadow-2xl shadow-black/10 md:max-w-none md:min-w-0 md:flex-1 md:border-x-0 md:shadow-none">
         <div className="relative flex-1 min-h-0">{body}</div>
         {showNav ? <BottomNav /> : null}
       </div>

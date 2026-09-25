@@ -20,7 +20,7 @@ export function TransactionsScreen() {
   });
 
   return (
-    <ScreenScaffold title={t("wallet.transactions")} subtitle={t("wallet.transactionsSub")}>
+    <ScreenScaffold title={t("wallet.transactions")} subtitle={t("wallet.transactionsSub")} width="wide">
       {query.isLoading ? (
         <PageSkeleton variant="list" />
       ) : query.isError ? (

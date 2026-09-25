@@ -64,6 +64,7 @@ export default function HoroscopeScreen() {
       title={t("astrology.horoscope")}
       subtitle={t("astrology.horoscopeSubtitle")}
       right={isDemo ? <DemoDataBadge /> : undefined}
+      width="default"
     >
       {horoscope.isLoading || !profileId ? (
         <PageSkeleton variant="cards" />

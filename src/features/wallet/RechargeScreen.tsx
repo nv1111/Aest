@@ -51,12 +51,12 @@ export function RechargeScreen() {
   };
 
   return (
-    <ScreenScaffold title={t("wallet.addMoneyTitle")}>
+    <ScreenScaffold title={t("wallet.addMoneyTitle")} width="narrow">
       <div className="space-y-6 pt-1">
         {/* presets */}
         <section aria-label={t("wallet.presets")}>
           <SectionHeader>{t("wallet.presets")}</SectionHeader>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-4">
             {PRESETS.map((p) => {
               const active = amount === p && customAmount == null;
               return (
@@ -116,7 +116,8 @@ export function RechargeScreen() {
         {/* method */}
         <section aria-label={t("wallet.method")}>
           <SectionHeader>{t("wallet.method")}</SectionHeader>
-          <div className="space-y-2" role="radiogroup" aria-label={t("wallet.method")}>
+          {/* stack on mobile; two-across radio cards on md+ */}
+          <div className="space-y-2 md:grid md:grid-cols-2 md:gap-2 md:space-y-0" role="radiogroup" aria-label={t("wallet.method")}>
             {METHODS.map((m) => {
               const active = method === m.id;
               return (

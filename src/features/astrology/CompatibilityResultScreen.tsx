@@ -61,6 +61,7 @@ export default function CompatibilityResultScreen() {
       title={t("astrology.compatibility")}
       subtitle={data ? t("astrology.compatResultFor", { a: data.profileA.name, b: data.profileB.name }) : undefined}
       right={isDemo ? <DemoDataBadge /> : undefined}
+      width="default"
     >
       {result.isLoading ? (
         <PageSkeleton variant="cards" />
@@ -129,7 +130,7 @@ export default function CompatibilityResultScreen() {
           {/* ------------------------------------------------ eight factors */}
           <section aria-label={t("astrology.compatKootas")}>
             <SectionHeader>{t("astrology.compatKootas")}</SectionHeader>
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 md:grid md:grid-cols-2 md:items-start md:gap-2.5 md:space-y-0">
               {data.kootas.map((k) => (
                 <div key={k.key} className="rounded-2xl border bg-card p-4">
                   <div className="flex items-start justify-between gap-3">

@@ -4,11 +4,14 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { useAppStore } from "@/store/app";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { contentWidthClass, type ContentWidth } from "./content-width";
 
 /**
  * Standard screen header. Pops the client-side stack (not browser history),
  * so deep screens always behave consistently.
+ *
+ * The inner row is a centered column matching the screen's content width,
+ * so the title aligns perfectly with the content below on every device.
  */
 export function ScreenHeader({
   title,
@@ -16,12 +19,14 @@ export function ScreenHeader({
   right,
   onBack,
   className,
+  width = "default",
 }: {
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
   onBack?: () => void;
   className?: string;
+  width?: ContentWidth;
 }) {
   const pop = useAppStore((s) => s.pop);
   const canPop = useAppStore((s) => s.stacks[s.tab].length > 1);
@@ -41,12 +46,17 @@ export function ScreenHeader({
 
   return (
     <header className={cn("sticky top-0 z-30 bg-background/92 backdrop-blur-md", className)}>
-      <div className="flex items-center gap-2 px-4 pt-3 pb-2.5">
+      <div
+        className={cn(
+          "mx-auto flex w-full items-center gap-2 px-4 pt-3 pb-2.5 md:px-6",
+          contentWidthClass[width]
+        )}
+      >
         <button
           type="button"
           onClick={handleBack}
           aria-label="Back"
-          className="flex h-11 w-11 items-center justify-center rounded-full text-foreground press hover:bg-secondary"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-foreground press hover:bg-secondary"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>

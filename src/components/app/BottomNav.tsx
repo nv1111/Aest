@@ -21,7 +21,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="pointer-events-auto absolute inset-x-0 bottom-0 z-40 border-t border-hairline bg-background/92 backdrop-blur-md safe-bottom"
+      className="pointer-events-auto absolute inset-x-0 bottom-0 z-40 border-t border-hairline bg-background/92 backdrop-blur-md safe-bottom md:hidden"
     >
       <div className="mx-auto flex max-w-[430px] items-stretch justify-around px-1 pb-1 pt-1">
         {TABS.map(({ id, icon: Icon, label }) => {

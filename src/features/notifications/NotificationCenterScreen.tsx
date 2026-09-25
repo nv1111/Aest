@@ -55,7 +55,7 @@ export function NotificationCenterScreen() {
   }, [query.data, qc, refreshMe]);
 
   return (
-    <ScreenScaffold title={t("profile.notificationCenter")}>
+    <ScreenScaffold title={t("profile.notificationCenter")} width="default">
       {query.isLoading ? (
         <PageSkeleton variant="list" />
       ) : query.isError ? (

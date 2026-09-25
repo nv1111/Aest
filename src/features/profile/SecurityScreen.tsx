@@ -37,7 +37,7 @@ export function SecurityScreen() {
   ];
 
   return (
-    <ScreenScaffold title={t("profile.security")}>
+    <ScreenScaffold title={t("profile.security")} width="default">
       <div className="space-y-6 pt-1">
         {/* session card */}
         <section aria-label={t("profile.sessionTitle")}>

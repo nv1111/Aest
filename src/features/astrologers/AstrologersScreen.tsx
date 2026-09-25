@@ -10,6 +10,7 @@ import { trackEvent } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import type { AstrologerDTO } from "@/types/models";
 import { AstrologerCard } from "@/components/shared/AstrologerCard";
+import { ContentColumn } from "@/components/shared/content-width";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
@@ -123,7 +124,9 @@ export default function AstrologersScreen() {
     return (
       <div className="h-full overflow-y-auto">
         <Header activeCount={0} onFilter={() => setSheetOpen(true)} />
-        <PageSkeleton variant="cards" />
+        <ContentColumn width="wide">
+          <PageSkeleton variant="cards" />
+        </ContentColumn>
       </div>
     );
   }
@@ -132,11 +135,13 @@ export default function AstrologersScreen() {
     return (
       <div className="h-full overflow-y-auto">
         <Header activeCount={activeCount} onFilter={() => setSheetOpen(true)} />
-        <ErrorState
-          icon={Users}
-          title={t("astrologers.errorTitle")}
-          onRetry={() => allQuery.refetch()}
-        />
+        <ContentColumn width="wide">
+          <ErrorState
+            icon={Users}
+            title={t("astrologers.errorTitle")}
+            onRetry={() => allQuery.refetch()}
+          />
+        </ContentColumn>
       </div>
     );
   }
@@ -149,7 +154,8 @@ export default function AstrologersScreen() {
     return (
       <div className="scroll-thin h-full overflow-y-auto">
         <Header activeCount={activeCount} onFilter={() => setSheetOpen(true)} />
-        <div className="space-y-3 px-4 pb-28 pt-1">
+        <div className="space-y-3 px-4 pb-28 pt-1 md:px-6 md:pb-12">
+          <ContentColumn width="wide">
           {filteredQuery.isLoading ? (
             <PageSkeleton variant="cards" />
           ) : results.length === 0 ? (
@@ -165,13 +171,14 @@ export default function AstrologersScreen() {
               <p className="px-1 text-[12.5px] text-muted-foreground" aria-live="polite">
                 {results.length} {t("astrologers.title").toLowerCase()}
               </p>
-              <div className="space-y-2.5">
+              <div className="space-y-2.5 md:grid md:grid-cols-2 md:space-y-0 md:gap-x-3 md:gap-y-2.5 lg:grid-cols-3">
                 {results.map((a) => (
                   <AstrologerCard key={a.id} a={a} onClick={() => openProfile(a)} />
                 ))}
               </div>
             </>
           )}
+          </ContentColumn>
         </div>
         <FilterSheet
           open={sheetOpen}
@@ -198,7 +205,8 @@ export default function AstrologersScreen() {
   return (
     <div className="scroll-thin h-full overflow-y-auto">
       <Header activeCount={0} onFilter={() => setSheetOpen(true)} />
-      <div className="space-y-7 px-4 pb-28 pt-1">
+      <div className="space-y-7 px-4 pb-28 pt-1 md:px-6 md:pb-12">
+        <ContentColumn width="wide">
         {all.length === 0 ? (
           <EmptyState icon={Users} title={t("astrologers.errorTitle")} body={t("astrologers.emptyBody")} />
         ) : (
@@ -206,7 +214,7 @@ export default function AstrologersScreen() {
             {recommended.length > 0 ? (
               <section aria-label={t("astrologers.recommended")}>
                 <SectionHeader>{t("astrologers.recommended")}</SectionHeader>
-                <div className="space-y-2.5">
+                <div className="space-y-2.5 md:grid md:grid-cols-2 md:space-y-0 md:gap-x-3 md:gap-y-2.5 lg:grid-cols-3">
                   {recommended.map((a) => (
                     <AstrologerCard key={a.id} a={a} onClick={() => openProfile(a)} />
                   ))}
@@ -217,10 +225,10 @@ export default function AstrologersScreen() {
             {onlineNow.length > 0 ? (
               <section aria-label={t("astrologers.onlineNow")}>
                 <SectionHeader>{t("astrologers.onlineNow")}</SectionHeader>
-                <div className="relative -mx-4">
-                  <div className="scroll-thin flex gap-3 overflow-x-auto px-4 pb-1">
+                <div className="relative -mx-4 md:-mx-6">
+                  <div className="scroll-thin flex gap-3 overflow-x-auto px-4 pb-1 md:px-6">
                     {onlineNow.map((a) => (
-                      <div key={a.id} className="w-[236px] shrink-0">
+                      <div key={a.id} className="w-[236px] shrink-0 md:w-[264px] lg:w-[288px]">
                         <AstrologerCard a={a} compact onClick={() => openProfile(a)} />
                       </div>
                     ))}
@@ -236,10 +244,10 @@ export default function AstrologersScreen() {
             {soon.length > 0 ? (
               <section aria-label={t("astrologers.availableSoon")}>
                 <SectionHeader>{t("astrologers.availableSoon")}</SectionHeader>
-                <div className="relative -mx-4">
-                  <div className="scroll-thin flex gap-3 overflow-x-auto px-4 pb-1">
+                <div className="relative -mx-4 md:-mx-6">
+                  <div className="scroll-thin flex gap-3 overflow-x-auto px-4 pb-1 md:px-6">
                     {soon.map((a) => (
-                      <div key={a.id} className="w-[236px] shrink-0">
+                      <div key={a.id} className="w-[236px] shrink-0 md:w-[264px] lg:w-[288px]">
                         <AstrologerCard a={a} compact onClick={() => openProfile(a)} />
                       </div>
                     ))}
@@ -254,7 +262,7 @@ export default function AstrologersScreen() {
 
             <section aria-label={t("astrologers.topRated")}>
               <SectionHeader>{t("astrologers.topRated")}</SectionHeader>
-              <div className="space-y-2.5">
+              <div className="space-y-2.5 md:grid md:grid-cols-2 md:space-y-0 md:gap-x-3 md:gap-y-2.5 lg:grid-cols-3">
                 {topRated.map((a) => (
                   <AstrologerCard key={a.id} a={a} onClick={() => openProfile(a)} />
                 ))}
@@ -264,9 +272,9 @@ export default function AstrologersScreen() {
             {newlyVerified.length > 0 ? (
               <section aria-label={t("astrologers.newVerified")}>
                 <SectionHeader>{t("astrologers.newVerified")}</SectionHeader>
-                <div className="scroll-thin -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+                <div className="scroll-thin -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6">
                   {newlyVerified.map((a) => (
-                    <div key={a.id} className="w-[236px] shrink-0">
+                    <div key={a.id} className="w-[236px] shrink-0 md:w-[264px] lg:w-[288px]">
                       <AstrologerCard a={a} compact onClick={() => openProfile(a)} />
                     </div>
                   ))}
@@ -275,6 +283,7 @@ export default function AstrologersScreen() {
             ) : null}
           </>
         )}
+        </ContentColumn>
       </div>
       <FilterSheet
         open={sheetOpen}
@@ -292,8 +301,8 @@ export default function AstrologersScreen() {
 function Header({ activeCount, onFilter }: { activeCount: number; onFilter: () => void }) {
   const push = useAppStore((s) => s.push);
   return (
-    <header className="sticky top-0 z-30 bg-background/92 px-4 pb-3 pt-5 backdrop-blur-md">
-      <div className="flex items-end justify-between gap-3">
+    <header className="sticky top-0 z-30 bg-background/92 px-4 pb-3 pt-5 backdrop-blur-md md:px-6">
+      <div className="mx-auto flex w-full items-end justify-between gap-3 md:max-w-3xl lg:max-w-5xl xl:max-w-6xl">
         <div className="min-w-0">
           <h1 className="font-display text-[22px] font-semibold leading-tight tracking-tight text-foreground">
             {t("astrologers.title")}
@@ -390,7 +399,7 @@ function FilterSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="mx-auto max-h-[85vh] max-w-[430px] gap-0 overflow-y-auto rounded-t-3xl scroll-thin px-5 pb-5 pt-5"
+        className="mx-auto max-h-[85vh] max-w-[430px] gap-0 overflow-y-auto rounded-t-3xl scroll-thin px-5 pb-5 pt-5 md:max-w-lg"
       >
         <SheetHeader className="space-y-1 px-0 text-left">
           <SheetTitle className="font-display text-[18px] font-semibold">{t("astrologers.filters")}</SheetTitle>

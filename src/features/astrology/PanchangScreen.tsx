@@ -27,6 +27,7 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { PageSkeleton } from "@/components/shared/PageSkeleton";
 import { TrustNote } from "@/components/shared/TrustNote";
 import { DemoDataBadge } from "@/components/shared/DemoDataBadge";
+import { ContentColumn } from "@/components/shared/content-width";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -85,6 +86,7 @@ export default function PanchangScreen() {
       title={t("astrology.panchang")}
       subtitle={dateLabel}
       right={isDemo ? <DemoDataBadge /> : undefined}
+      width="wide"
     >
       {panchang.isLoading || (ready && !data) ? (
         <PageSkeleton variant="cards" />
@@ -98,7 +100,7 @@ export default function PanchangScreen() {
       ) : data ? (
         <div className="space-y-6 pt-1">
           {/* ------------------------------------------------ date control */}
-          <div className="flex w-full gap-1 rounded-2xl bg-secondary p-1" role="tablist" aria-label={t("astrology.panchang")}>
+          <div className="flex w-full gap-1 rounded-2xl bg-secondary p-1 md:max-w-md" role="tablist" aria-label={t("astrology.panchang")}>
             <DateButton active={mode === "today"} onClick={() => setMode("today")}>
               {t("astrology.today")}
             </DateButton>
@@ -154,7 +156,7 @@ export default function PanchangScreen() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
             aria-label={t("astrology.sunrise")}
-            className="tara-hero rounded-3xl border bg-card p-5"
+            className="tara-hero rounded-3xl border bg-card p-5 md:mx-auto md:max-w-2xl xl:max-w-3xl"
           >
             <div className="grid grid-cols-2 gap-4">
               <BigTime icon={Sunrise} label={t("astrology.sunrise")} value={formatHHMM(data.sunrise)} />
@@ -169,7 +171,7 @@ export default function PanchangScreen() {
           {/* ------------------------------------------------ five angas */}
           <section aria-label={t("astrology.panchangFive")}>
             <SectionHeader>{t("astrology.panchangFive")}</SectionHeader>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
               <AngaCard
                 term="tithi"
                 label={t("astrology.tithi")}
@@ -245,6 +247,7 @@ export default function PanchangScreen() {
 
           {/* ------------------------------------------------ choghadiya */}
           <section aria-label={t("astrology.choghadiyaTitle")}>
+            <ContentColumn width="default">
             <SectionHeader
               action={
                 <button
@@ -278,6 +281,7 @@ export default function PanchangScreen() {
             <p className="mt-2.5 px-1 text-[11.5px] leading-relaxed text-muted-foreground/80">
               {t("astrology.choghadiyaHint")}
             </p>
+            </ContentColumn>
           </section>
         </div>
       ) : null}

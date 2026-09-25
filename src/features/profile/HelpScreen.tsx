@@ -20,7 +20,7 @@ export function HelpScreen() {
   const push = useAppStore((s) => s.push);
 
   return (
-    <ScreenScaffold title={t("profile.help")}>
+    <ScreenScaffold title={t("profile.help")} width="default">
       <div className="space-y-6 pt-1">
         <section aria-label={t("profile.faqTitle")}>
           <SectionHeader>{t("profile.faqTitle")}</SectionHeader>

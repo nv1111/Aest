@@ -1,0 +1,1078 @@
+     1→"use client";
+     2→
+     3→import { useCallback, useEffect, useRef, useState } from "react";
+     4→import { useQuery, useQueryClient } from "@tanstack/react-query";
+     5→import { AnimatePresence, motion } from "framer-motion";
+     6→import { formatDistanceToNow } from "date-fns";
+     7→import { toast } from "sonner";
+     8→import {
+     9→  ArrowUp,
+    10→  Briefcase,
+    11→  Calendar,
+    12→  ChevronRight,
+    13→  Copy,
+    14→  Headphones,
+    15→  Heart,
+    16→  History,
+    17→  Hourglass,
+    18→  Loader2,
+    19→  Mic,
+    20→  MoonStar,
+    21→  Share2,
+    22→  Sparkles,
+    23→  Square,
+    24→  SquarePen,
+    25→  ThumbsDown,
+    26→  ThumbsUp,
+    27→  Users,
+    28→  type LucideIcon,
+    29→} from "lucide-react";
+    30→import { useMe } from "@/hooks/useSession";
+    31→import { useAppStore, useCurrentScreen } from "@/store/app";
+    32→import { t } from "@/i18n";
+    33→import { trackEvent } from "@/lib/analytics";
+    34→import { ApiError, errorMessage } from "@/lib/http";
+    35→import { aiService, type AiConversationSummaryDTO, type AskMessageDTO } from "@/services/ai";
+    36→import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
+    37→import { EmptyState } from "@/components/shared/EmptyState";
+    38→import { ErrorState } from "@/components/shared/ErrorState";
+    39→import { TrustNote } from "@/components/shared/TrustNote";
+    40→import { DemoDataBadge } from "@/components/shared/DemoDataBadge";
+    41→import { Button } from "@/components/ui/button";
+    42→import { Skeleton } from "@/components/ui/skeleton";
+    43→import {
+    44→  Sheet,
+    45→  SheetContent,
+    46→  SheetDescription,
+    47→  SheetFooter,
+    48→  SheetHeader,
+    49→  SheetTitle,
+    50→} from "@/components/ui/sheet";
+    51→import {
+    52→  AlertDialog,
+    53→  AlertDialogAction,
+    54→  AlertDialogCancel,
+    55→  AlertDialogContent,
+    56→  AlertDialogDescription,
+    57→  AlertDialogFooter,
+    58→  AlertDialogHeader,
+    59→  AlertDialogTitle,
+    60→  AlertDialogTrigger,
+    61→} from "@/components/ui/alert-dialog";
+    62→import { cn } from "@/lib/utils";
+    63→
+    64→// ------------------------------------------------------------------ constants
+    65→
+    66→const CONV_STORAGE_KEY = "tara_ask_conversation";
+    67→const MAX_MESSAGE_LENGTH = 500;
+    68→
+    69→const SUGGESTIONS: { icon: LucideIcon; label: string }[] = [
+    70→  { icon: Briefcase, label: t("ask.promptCareer") },
+    71→  { icon: Hourglass, label: t("ask.promptPhase") },
+    72→  { icon: Heart, label: t("ask.promptRelationships") },
+    73→  { icon: Calendar, label: t("ask.promptMonth") },
+    74→];
+    75→
+    76→interface PendingExchange {
+    77→  question: string;
+    78→  status: "thinking" | "failed";
+    79→  error?: string;
+    80→}
+    81→
+    82→// ------------------------------------------------------- speech recognition
+    83→// Minimal structural types — SpeechRecognition is not in the TS DOM lib and
+    84→// availability varies (webkit prefix). Everything is narrowed to unknown.
+    85→
+    86→interface RecognitionResultItem {
+    87→  transcript: string;
+    88→}
+    89→interface RecognitionResultEvent {
+    90→  results: ArrayLike<ArrayLike<RecognitionResultItem>>;
+    91→}
+    92→interface RecognitionLike {
+    93→  lang: string;
+    94→  interimResults: boolean;
+    95→  continuous: boolean;
+    96→  onresult: ((event: RecognitionResultEvent) => void) | null;
+    97→  onerror: (() => void) | null;
+    98→  onend: (() => void) | null;
+    99→  start: () => void;
+   100→  stop: () => void;
+   101→}
+   102→type RecognitionCtor = new () => RecognitionLike;
+   103→
+   104→function getRecognitionCtor(): RecognitionCtor | null {
+   105→  if (typeof window === "undefined") return null;
+   106→  const w = window as unknown as {
+   107→    SpeechRecognition?: RecognitionCtor;
+   108→    webkitSpeechRecognition?: RecognitionCtor;
+   109→  };
+   110→  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+   111→}
+   112→
+   113→function isAbortError(err: unknown): boolean {
+   114→  return err instanceof Error && err.name === "AbortError";
+   115→}
+   116→
+   117→// ------------------------------------------------------------- audio playback
+   118→// One audio element for the whole screen — only one reading speaks at a time.
+   119→
+   120→let sharedAudio: HTMLAudioElement | null = null;
+   121→function getSharedAudio(): HTMLAudioElement {
+   122→  if (!sharedAudio) sharedAudio = new Audio();
+   123→  return sharedAudio;
+   124→}
+   125→
+   126→export type SpeakState = { id: string; status: "loading" | "playing" } | null;
+   127→
+   128→// ------------------------------------------------------------------ screen
+   129→
+   130→/**
+   131→ * AskScreen — the "Ask your chart" conversational assistant.
+   132→ * ChatGPT-style flow grounded in the user's pre-computed chart context.
+   133→ */
+   134→export default function AskScreen() {
+   135→  const me = useMe();
+   136→  const qc = useQueryClient();
+   137→  const push = useAppStore((s) => s.push);
+   138→  const openInTab = useAppStore((s) => s.openInTab);
+   139→  const screen = useCurrentScreen();
+   140→  const qParam = typeof screen.params?.q === "string" ? screen.params.q : undefined;
+   141→
+   142→  const [input, setInput] = useState("");
+   143→  const [activeId, setActiveIdState] = useState<string | null>(() => {
+   144→    if (typeof window === "undefined") return null;
+   145→    try {
+   146→      return window.sessionStorage.getItem(CONV_STORAGE_KEY);
+   147→    } catch {
+   148→      return null;
+   149→    }
+   150→  });
+   151→  const [pending, setPending] = useState<PendingExchange | null>(null);
+   152→  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+   153→  const [feedbackSent, setFeedbackSent] = useState<Record<string, 1 | -1>>({});
+   154→  const [historyOpen, setHistoryOpen] = useState(false);
+   155→  const [listening, setListening] = useState(false);
+   156→  const [speakState, setSpeakState] = useState<SpeakState>(null);
+   157→
+   158→  const pendingRef = useRef<PendingExchange | null>(null);
+   159→  const abortRef = useRef<AbortController | null>(null);
+   160→  const recognitionRef = useRef<RecognitionLike | null>(null);
+   161→  const inputRef = useRef<HTMLTextAreaElement>(null);
+   162→  const listRef = useRef<HTMLDivElement>(null);
+   163→  const autoSentRef = useRef(false);
+   164→  const speakTokenRef = useRef(0);
+   165→
+   166→  const hasProfile = !!me.data?.primaryProfile;
+   167→
+   168→  // ------------------------------------------------------------- data
+   169→
+   170→  const conversations = useQuery({
+   171→    queryKey: ["ai-conversations"],
+   172→    queryFn: () => aiService.conversations(),
+   173→    enabled: !!me.data?.user,
+   174→    staleTime: 30_000,
+   175→  });
+   176→
+   177→  const messagesQuery = useQuery<AskMessageDTO[]>({
+   178→    queryKey: ["ai-messages", activeId],
+   179→    queryFn: async () => (await aiService.messages(activeId as string)).messages,
+   180→    enabled: !!activeId,
+   181→    staleTime: 30_000,
+   182→    retry: false,
+   183→  });
+   184→
+   185→  const messages = activeId ? (messagesQuery.data ?? []) : [];
+   186→  const messagesLoading = !!activeId && messagesQuery.isLoading;
+   187→  const messagesError =
+   188→    !!activeId && messagesQuery.isError && !(messagesQuery.error instanceof ApiError && messagesQuery.error.code === "not_found");
+   189→
+   190→  const activeConversation: AiConversationSummaryDTO | undefined = conversations.data?.conversations.find(
+   191→    (c) => c.id === activeId
+   192→  );
+   193→
+   194→  // ------------------------------------------------------------- actions
+   195→
+   196→  const setActive = useCallback((id: string | null) => {
+   197→    setActiveIdState(id);
+   198→    try {
+   199→      if (id) window.sessionStorage.setItem(CONV_STORAGE_KEY, id);
+   200→      else window.sessionStorage.removeItem(CONV_STORAGE_KEY);
+   201→    } catch {
+   202→      /* storage unavailable — conversation still works in-memory */
+   203→    }
+   204→  }, []);
+   205→
+   206→  // A stored conversation that no longer exists (cleared) → soft reset.
+   207→  useEffect(() => {
+   208→    if (messagesQuery.error instanceof ApiError && messagesQuery.error.code === "not_found") {
+   209→      setActive(null);
+   210→    }
+   211→  }, [messagesQuery.error, setActive]);
+   212→
+   213→  const send = useCallback(
+   214→    async (text: string) => {
+   215→      const question = text.trim().slice(0, MAX_MESSAGE_LENGTH);
+   216→      if (!question || pendingRef.current) return;
+   217→      setInput("");
+   218→      const exchange: PendingExchange = { question, status: "thinking" };
+   219→      pendingRef.current = exchange;
+   220→      setPending(exchange);
+   221→      const controller = new AbortController();
+   222→      abortRef.current = controller;
+   223→      try {
+   224→        const result = await aiService.ask(question, activeId ?? undefined, controller.signal);
+   225→        trackEvent("ai_question_asked");
+   226→        qc.setQueryData<AskMessageDTO[]>(["ai-messages", result.conversationId], (old) =>
+   227→          old ? [...old, ...result.messages] : [...result.messages]
+   228→        );
+   229→        setActive(result.conversationId);
+   230→        pendingRef.current = null;
+   231→        setPending(null);
+   232→        void qc.invalidateQueries({ queryKey: ["ai-conversations"] });
+   233→      } catch (err) {
+   234→        const failure: PendingExchange = {
+   235→          question,
+   236→          status: "failed",
+   237→          error: isAbortError(err) ? t("ask.stopped") : errorMessage(err),
+   238→        };
+   239→        pendingRef.current = failure;
+   240→        setPending(failure);
+   241→      } finally {
+   242→        abortRef.current = null;
+   243→      }
+   244→    },
+   245→    [activeId, qc, setActive]
+   246→  );
+   247→
+   248→  const retryPending = useCallback(() => {
+   249→    const current = pendingRef.current;
+   250→    if (!current || current.status !== "failed") return;
+   251→    pendingRef.current = null;
+   252→    setPending(null);
+   253→    void send(current.question);
+   254→  }, [send]);
+   255→
+   256→  const stopThinking = useCallback(() => {
+   257→    abortRef.current?.abort();
+   258→  }, []);
+   259→
+   260→  // Home can navigate here with a prefilled question (params.q).
+   261→  useEffect(() => {
+   262→    if (autoSentRef.current) return;
+   263→    if (me.isLoading) return;
+   264→    const q = (qParam ?? "").trim();
+   265→    if (!q) return;
+   266→    autoSentRef.current = true;
+   267→    if (hasProfile) {
+   268→      void send(q);
+   269→    } else {
+   270→      setInput(q.slice(0, MAX_MESSAGE_LENGTH));
+   271→    }
+   272→  }, [me.isLoading, hasProfile, qParam, send]);
+   273→
+   274→  const toggleFactors = useCallback((id: string) => {
+   275→    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+   276→  }, []);
+   277→
+   278→  const sendFeedback = useCallback(async (messageId: string, value: 1 | -1) => {
+   279→    setFeedbackSent((prev) => ({ ...prev, [messageId]: value }));
+   280→    try {
+   281→      await aiService.feedback(messageId, value);
+   282→      toast(t("ask.thanksForFeedback"));
+   283→    } catch (err) {
+   284→      toast.error(errorMessage(err));
+   285→    }
+   286→  }, []);
+   287→
+   288→  const copyAnswer = useCallback(async (content: string) => {
+   289→    try {
+   290→      await navigator.clipboard.writeText(content);
+   291→      toast(t("ask.copied"));
+   292→    } catch {
+   293→      toast.error(t("common.errorGeneric"));
+   294→    }
+   295→  }, []);
+   296→
+   297→  const toggleListen = useCallback(
+   298→    async (messageId: string) => {
+   299→      const audio = getSharedAudio();
+   300→
+   301→      // tap on the speaking/loading message → stop
+   302→      if (speakState?.id === messageId) {
+   303→        speakTokenRef.current += 1; // invalidate in-flight loads
+   304→        audio.pause();
+   305→        audio.removeAttribute("src"); // release the decoder
+   306→        setSpeakState(null);
+   307→        return;
+   308→      }
+   309→
+   310→      // another message is speaking → switch
+   311→      speakTokenRef.current += 1;
+   312→      audio.pause();
+   313→      const token = speakTokenRef.current;
+   314→      setSpeakState({ id: messageId, status: "loading" });
+   315→      try {
+   316→        const url = await aiService.speak(messageId);
+   317→        if (token !== speakTokenRef.current) return; // superseded meanwhile
+   318→        audio.src = url;
+   319→        audio.onended = () => setSpeakState((s) => (s?.id === messageId ? null : s));
+   320→        audio.onerror = () => setSpeakState((s) => (s?.id === messageId ? null : s));
+   321→        await audio.play();
+   322→        if (token !== speakTokenRef.current) {
+   323→          audio.pause();
+   324→          return;
+   325→        }
+   326→        setSpeakState({ id: messageId, status: "playing" });
+   327→        trackEvent("reading_listened");
+   328→      } catch (err) {
+   329→        if (token !== speakTokenRef.current) return;
+   330→        setSpeakState(null);
+   331→        if (err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "AbortError")) return;
+   332→        toast.error(errorMessage(err));
+   333→      }
+   334→    },
+   335→    [speakState]
+   336→  );
+   337→
+   338→  // stop the voice when leaving the screen
+   339→  useEffect(() => {
+   340→    return () => {
+   341→      speakTokenRef.current += 1;
+   342→      const audio = getSharedAudio();
+   343→      audio.pause();
+   344→      audio.onended = null;
+   345→      audio.onerror = null;
+   346→    };
+   347→  }, []);
+   348→
+   349→  const shareAnswer = useCallback(async (content: string) => {
+   350→    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+   351→      try {
+   352→        await navigator.share({ title: t("common.appName"), text: content });
+   353→      } catch {
+   354→        /* user dismissed the share sheet */
+   355→      }
+   356→      return;
+   357→    }
+   358→    try {
+   359→      await navigator.clipboard.writeText(content);
+   360→      toast(t("ask.shareCopied"));
+   361→    } catch {
+   362→      toast.error(t("common.errorGeneric"));
+   363→    }
+   364→  }, []);
+   365→
+   366→  const loadConversation = useCallback(
+   367→    (id: string) => {
+   368→      setActive(id);
+   369→      setExpanded({});
+   370→      setHistoryOpen(false);
+   371→    },
+   372→    [setActive]
+   373→  );
+   374→
+   375→  const startNew = useCallback(() => {
+   376→    setActive(null);
+   377→    setExpanded({});
+   378→  }, [setActive]);
+   379→
+   380→  const clearAll = useCallback(async () => {
+   381→    try {
+   382→      await aiService.clearAll();
+   383→      qc.removeQueries({ queryKey: ["ai-messages"] });
+   384→      setActive(null);
+   385→      setHistoryOpen(false);
+   386→      void qc.invalidateQueries({ queryKey: ["ai-conversations"] });
+   387→      toast(t("ask.clearedToast"));
+   388→    } catch (err) {
+   389→      toast.error(errorMessage(err));
+   390→    }
+   391→  }, [qc, setActive]);
+   392→
+   393→  // ------------------------------------------------------------- voice input
+   394→
+   395→  const toggleMic = useCallback(() => {
+   396→    if (listening) {
+   397→      recognitionRef.current?.stop();
+   398→      return;
+   399→    }
+   400→    const Ctor = getRecognitionCtor();
+   401→    if (!Ctor) {
+   402→      toast(t("ask.voiceUnavailable"));
+   403→      return;
+   404→    }
+   405→    const rec = new Ctor();
+   406→    rec.lang = "en-IN";
+   407→    rec.interimResults = true;
+   408→    rec.continuous = false;
+   409→    rec.onresult = (event) => {
+   410→      let transcript = "";
+   411→      const list = event.results;
+   412→      for (let i = list.length - 1; i >= 0; i--) {
+   413→        const alt = list[i]?.[0];
+   414→        if (alt?.transcript) {
+   415→          transcript = alt.transcript;
+   416→          break;
+   417→        }
+   418→      }
+   419→      if (transcript) setInput((prev) => (prev ? `${prev} ${transcript}`.slice(0, MAX_MESSAGE_LENGTH) : transcript));
+   420→    };
+   421→    rec.onerror = () => {
+   422→      setListening(false);
+   423→      toast(t("ask.voiceUnavailable"));
+   424→    };
+   425→    rec.onend = () => setListening(false);
+   426→    recognitionRef.current = rec;
+   427→    try {
+   428→      rec.start();
+   429→      setListening(true);
+   430→    } catch {
+   431→      setListening(false);
+   432→      toast(t("ask.voiceUnavailable"));
+   433→    }
+   434→  }, [listening]);
+   435→
+   436→  useEffect(() => {
+   437→    return () => {
+   438→      recognitionRef.current?.stop();
+   439→      recognitionRef.current = null;
+   440→    };
+   441→  }, []);
+   442→
+   443→  // ------------------------------------------------------------- autoscroll / autosize
+   444→
+   445→  useEffect(() => {
+   446→    const el = inputRef.current;
+   447→    if (!el) return;
+   448→    el.style.height = "auto";
+   449→    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+   450→  }, [input]);
+   451→
+   452→  useEffect(() => {
+   453→    const el = listRef.current;
+   454→    if (!el) return;
+   455→    const farFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight > 400;
+   456→    el.scrollTo({ top: el.scrollHeight, behavior: farFromBottom ? "auto" : "smooth" });
+   457→  }, [messages.length, pending?.question, pending?.status]);
+   458→
+   459→  // ------------------------------------------------------------- render helpers
+   460→
+   461→  const meReady = !me.isLoading;
+   462→  const noProfile = meReady && !hasProfile;
+   463→  const showEmpty = meReady && hasProfile && !pending && !messagesLoading && !messagesError && messages.length === 0;
+   464→  const hasAssistantReply = messages.some((m) => m.role === "assistant");
+   465→  const canSend = input.trim().length > 0 && pending === null;
+   466→
+   467→  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+   468→    if (e.key === "Enter" && !e.shiftKey) {
+   469→      e.preventDefault();
+   470→      if (canSend) void send(input);
+   471→    }
+   472→  };
+   473→
+   474→  return (
+   475→    <ScreenScaffold bare>
+   476→      {/* -------------------------------------------------- header */}
+   477→      <header className="flex shrink-0 items-center justify-between gap-2 px-4 pb-2.5 pt-4">
+   478→        <div className="min-w-0">
+   479→          <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t("nav.ask")}</p>
+   480→          <h1 className="truncate font-display text-[19px] font-semibold leading-tight text-foreground">
+   481→            {activeConversation?.title ?? t("ask.title")}
+   482→          </h1>
+   483→        </div>
+   484→        <div className="flex shrink-0 items-center gap-1.5">
+   485→          <HeaderIconButton icon={SquarePen} label={t("ask.newChatAction")} onClick={startNew} />
+   486→          <HeaderIconButton icon={History} label={t("ask.history")} onClick={() => setHistoryOpen(true)} />
+   487→        </div>
+   488→      </header>
+   489→
+   490→      {/* -------------------------------------------------- message list */}
+   491→      <div
+   492→        ref={listRef}
+   493→        role="log"
+   494→        aria-live="polite"
+   495→        aria-label={t("ask.title")}
+   496→        className="scroll-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6"
+   497→      >
+   498→        {noProfile ? (
+   499→          <EmptyState
+   500→            icon={MoonStar}
+   501→            title={t("ask.needProfileTitle")}
+   502→            body={t("ask.needProfile")}
+   503→            actionLabel={t("ask.needProfileCta")}
+   504→            onAction={() => push({ id: "profile.birthEdit", params: { mode: "create" } })}
+   505→          />
+   506→        ) : messagesLoading ? (
+   507→          <ConversationSkeleton />
+   508→        ) : messagesError ? (
+   509→          <ErrorState
+   510→            title={t("ask.errorTitle")}
+   511→            body={errorMessage(messagesQuery.error)}
+   512→            onRetry={() => void messagesQuery.refetch()}
+   513→          />
+   514→        ) : showEmpty ? (
+   515→          <EmptyAsk busy={pending !== null} onAsk={(q) => void send(q)} />
+   516→        ) : (
+   517→          <div className="space-y-4">
+   518→            {messages.map((m, i) =>
+   519→              m.role === "user" ? (
+   520→                <UserBubble key={m.id} content={m.content} />
+   521→              ) : (
+   522→                <AssistantCard
+   523→                  key={m.id}
+   524→                  m={m}
+   525→                  expanded={!!expanded[m.id]}
+   526→                  feedbackValue={feedbackSent[m.id]}
+   527→                  disabled={pending !== null}
+   528→                  speakState={speakState?.id === m.id ? speakState.status : "idle"}
+   529→                  retryQuestion={
+   530→                    m.failed && messages[i - 1]?.role === "user" ? messages[i - 1].content : undefined
+   531→                  }
+   532→                  onToggleFactors={toggleFactors}
+   533→                  onAsk={(q) => void send(q)}
+   534→                  onCopy={(c) => void copyAnswer(c)}
+   535→                  onListen={(id) => void toggleListen(id)}
+   536→                  onShare={(c) => void shareAnswer(c)}
+   537→                  onFeedback={(id, v) => void sendFeedback(id, v)}
+   538→                />
+   539→              )
+   540→            )}
+   541→            {pending ? (
+   542→              <PendingView pending={pending} onStop={stopThinking} onRetry={retryPending} />
+   543→            ) : null}
+   544→          </div>
+   545→        )}
+   546→      </div>
+   547→
+   548→      {/* -------------------------------------------------- talk to an astrologer */}
+   549→      {hasProfile && hasAssistantReply && !pending ? (
+   550→        <button
+   551→          type="button"
+   552→          onClick={() => openInTab("astrologers", { id: "astrologers.list" })}
+   553→          className="press mx-3 mb-1.5 flex shrink-0 items-center gap-3 rounded-2xl border border-dashed border-hairline bg-secondary/50 p-3 text-left hover:bg-secondary"
+   554→        >
+   555→          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-card text-muted-foreground">
+   556→            <Users className="h-5 w-5" strokeWidth={1.75} />
+   557→          </span>
+   558→          <span className="min-w-0 flex-1">
+   559→            <span className="block truncate text-[13.5px] font-semibold text-foreground">{t("common.talkToAstrologer")}</span>
+   560→            <span className="block truncate text-[12px] text-muted-foreground">{t("ask.talkToAstrologerBody")}</span>
+   561→          </span>
+   562→          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+   563→        </button>
+   564→      ) : null}
+   565→
+   566→      {/* -------------------------------------------------- composer */}
+   567→      {hasProfile ? (
+   568→        <div className="mb-[calc(88px+env(safe-area-inset-bottom))] shrink-0 border-t border-hairline bg-background px-3 pb-2 pt-2.5">
+   569→          <div
+   570→            className={cn(
+   571→              "flex items-end gap-1.5 rounded-3xl border border-hairline bg-card px-1.5 py-1.5",
+   572→              listening ? "border-primary/50 ring-2 ring-primary/15" : "focus-within:border-primary/40"
+   573→            )}
+   574→          >
+   575→            <textarea
+   576→              ref={inputRef}
+   577→              rows={1}
+   578→              value={input}
+   579→              maxLength={MAX_MESSAGE_LENGTH}
+   580→              onChange={(e) => setInput(e.target.value)}
+   581→              onKeyDown={handleKeyDown}
+   582→              placeholder={listening ? t("ask.listening") : t("ask.inputPlaceholder")}
+   583→              aria-label={t("ask.inputPlaceholder")}
+   584→              className="scroll-thin max-h-[120px] min-h-11 w-full flex-1 resize-none bg-transparent px-2.5 py-2.5 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none"
+   585→            />
+   586→            <button
+   587→              type="button"
+   588→              onClick={toggleMic}
+   589→              aria-label={t("ask.voiceLabel")}
+   590→              className={cn(
+   591→                "press flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors",
+   592→                listening
+   593→                  ? "bg-accent text-primary"
+   594→                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+   595→              )}
+   596→            >
+   597→              <Mic className="h-5 w-5" strokeWidth={1.75} />
+   598→            </button>
+   599→            <button
+   600→              type="button"
+   601→              onClick={() => void send(input)}
+   602→              disabled={!canSend}
+   603→              aria-label={t("ask.send")}
+   604→              className="press flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm shadow-primary/20 transition-opacity disabled:opacity-35"
+   605→            >
+   606→              <ArrowUp className="h-5 w-5" strokeWidth={2.25} />
+   607→            </button>
+   608→          </div>
+   609→        </div>
+   610→      ) : null}
+   611→
+   612→      {/* -------------------------------------------------- history sheet */}
+   613→      <HistorySheet
+   614→        open={historyOpen}
+   615→        onOpenChange={setHistoryOpen}
+   616→        query={conversations}
+   617→        activeId={activeId}
+   618→        onLoad={loadConversation}
+   619→        onClear={() => void clearAll()}
+   620→      />
+   621→    </ScreenScaffold>
+   622→  );
+   623→}
+   624→
+   625→// ------------------------------------------------------------------ pieces
+   626→
+   627→function HeaderIconButton({ icon: Icon, label, onClick }: { icon: LucideIcon; label: string; onClick: () => void }) {
+   628→  return (
+   629→    <button
+   630→      type="button"
+   631→      onClick={onClick}
+   632→      aria-label={label}
+   633→      title={label}
+   634→      className="press flex h-11 w-11 items-center justify-center rounded-full border border-hairline bg-card text-foreground hover:bg-secondary"
+   635→    >
+   636→      <Icon className="h-5 w-5" strokeWidth={1.75} />
+   637→    </button>
+   638→  );
+   639→}
+   640→
+   641→function EmptyAsk({ busy, onAsk }: { busy: boolean; onAsk: (question: string) => void }) {
+   642→  return (
+   643→    <div className="flex h-full flex-col items-center justify-center px-1 pb-4 pt-2 text-center">
+   644→      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-primary">
+   645→        <Sparkles className="h-6 w-6" strokeWidth={1.75} />
+   646→      </span>
+   647→      <h2 className="mt-4 font-display text-[26px] font-semibold leading-tight tracking-tight text-foreground">
+   648→        {t("ask.emptyTitle")}
+   649→      </h2>
+   650→      <p className="mt-2 max-w-[300px] text-[13.5px] leading-relaxed text-muted-foreground">{t("ask.emptyBody")}</p>
+   651→
+   652→      <div className="mt-7 w-full max-w-[380px] space-y-2">
+   653→        <p className="px-1 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+   654→          {t("ask.suggested")}
+   655→        </p>
+   656→        {SUGGESTIONS.map(({ icon: Icon, label }) => (
+   657→          <button
+   658→            key={label}
+   659→            type="button"
+   660→            disabled={busy}
+   661→            onClick={() => onAsk(label)}
+   662→            className="press flex w-full items-center gap-3 rounded-2xl border border-hairline bg-card p-3.5 text-left hover:bg-secondary disabled:opacity-50"
+   663→          >
+   664→            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary text-muted-foreground">
+   665→              <Icon className="h-4.5 w-4.5" strokeWidth={1.75} />
+   666→            </span>
+   667→            <span className="min-w-0 flex-1 text-[13.5px] font-medium leading-snug text-foreground">{label}</span>
+   668→            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+   669→          </button>
+   670→        ))}
+   671→      </div>
+   672→
+   673→      <TrustNote variant="info" className="mt-6 w-full max-w-[380px] border-l-2 border-l-primary/40 bg-secondary/60">
+   674→        {t("ask.disclaimer")}
+   675→      </TrustNote>
+   676→    </div>
+   677→  );
+   678→}
+   679→
+   680→// ------------------------------------------------------------ term highlighting
+   681→
+   682→/** Astrological key terms that get quiet emphasis inside readings. */
+   683→const TERM_RE = new RegExp(
+   684→  [
+   685→    "\\b(Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)\\b", // planets
+   686→    "\\b([1-9]|1[0-2])(st|nd|rd|th)\\s+(house|House)\\b", // houses
+   687→    "\\bmahadasha\\b|\\bantardasha\\b|\\bdasha\\b", // life phases
+   688→    "\\bnakshatra\\b|\\bascendant\\b|\\btransit(s)?\\b", // chart vocabulary
+   689→  ].join("|"),
+   690→  "g"
+   691→);
+   692→
+   693→/** Renders reading text with key astrological terms quietly bolded. */
+   694→function HighlightedText({ text }: { text: string }) {
+   695→  const parts: React.ReactNode[] = [];
+   696→  let last = 0;
+   697→  for (const match of text.matchAll(TERM_RE)) {
+   698→    const index = match.index ?? 0;
+   699→    if (index > last) parts.push(text.slice(last, index));
+   700→    parts.push(
+   701→      <strong key={index} className="font-semibold text-foreground">
+   702→        {match[0]}
+   703→      </strong>
+   704→    );
+   705→    last = index + match[0].length;
+   706→  }
+   707→  if (last < text.length) parts.push(text.slice(last));
+   708→  return <>{parts}</>;
+   709→}
+   710→
+   711→function ConversationSkeleton() {
+   712→  return (
+   713→    <div className="space-y-4 pt-2">
+   714→      <div className="flex justify-end">
+   715→        <Skeleton className="h-10 w-44 rounded-2xl" />
+   716→      </div>
+   717→      <Skeleton className="h-32 w-full rounded-2xl" />
+   718→      <div className="flex justify-end">
+   719→        <Skeleton className="h-10 w-36 rounded-2xl" />
+   720→      </div>
+   721→      <Skeleton className="h-24 w-full rounded-2xl" />
+   722→    </div>
+   723→  );
+   724→}
+   725→
+   726→function UserBubble({ content }: { content: string }) {
+   727→  return (
+   728→    <div className="msg-in flex justify-end">
+   729→      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[14px] leading-relaxed text-primary-foreground">
+   730→        {content}
+   731→      </div>
+   732→    </div>
+   733→  );
+   734→}
+   735→
+   736→function ThinkingIndicator({ onStop }: { onStop: () => void }) {
+   737→  return (
+   738→    <div className="msg-in flex items-center gap-3">
+   739→      <div className="flex items-center gap-1.5 rounded-full bg-secondary px-3.5 py-2.5" aria-label={t("ask.thinking")}>
+   740→        {[0, 1, 2].map((i) => (
+   741→          <span
+   742→            key={i}
+   743→            className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary/70"
+   744→            style={{ animationDelay: `${i * 160}ms` }}
+   745→          />
+   746→        ))}
+   747→        <span className="ml-1 text-[12.5px] font-medium text-muted-foreground">{t("ask.thinking")}</span>
+   748→      </div>
+   749→      <button
+   750→        type="button"
+   751→        onClick={onStop}
+   752→        className="press flex h-11 items-center rounded-full border border-hairline bg-card px-4 text-[12.5px] font-medium text-foreground hover:bg-secondary"
+   753→      >
+   754→        {t("ask.stop")}
+   755→      </button>
+   756→    </div>
+   757→  );
+   758→}
+   759→
+   760→function PendingView({
+   761→  pending,
+   762→  onStop,
+   763→  onRetry,
+   764→}: {
+   765→  pending: PendingExchange;
+   766→  onStop: () => void;
+   767→  onRetry: () => void;
+   768→}) {
+   769→  return (
+   770→    <>
+   771→      <UserBubble content={pending.question} />
+   772→      {pending.status === "thinking" ? (
+   773→        <ThinkingIndicator onStop={onStop} />
+   774→      ) : (
+   775→        <div className="msg-in max-w-[92%] rounded-2xl rounded-tl-md border border-destructive/25 bg-destructive/5 px-4 py-3" role="alert">
+   776→          <p className="text-[13.5px] font-medium leading-relaxed text-foreground">{pending.error}</p>
+   777→          <button
+   778→            type="button"
+   779→            onClick={onRetry}
+   780→            className="press mt-2 inline-flex h-9 items-center rounded-full px-1 text-[12.5px] font-semibold text-primary underline-offset-4 hover:underline"
+   781→          >
+   782→            {t("common.retry")}
+   783→          </button>
+   784→        </div>
+   785→      )}
+   786→    </>
+   787→  );
+   788→}
+   789→
+   790→function AssistantCard({
+   791→  m,
+   792→  expanded,
+   793→  feedbackValue,
+   794→  disabled,
+   795→  speakState,
+   796→  retryQuestion,
+   797→  onToggleFactors,
+   798→  onAsk,
+   799→  onCopy,
+   800→  onListen,
+   801→  onShare,
+   802→  onFeedback,
+   803→}: {
+   804→  m: AskMessageDTO;
+   805→  expanded: boolean;
+   806→  feedbackValue: 1 | -1 | undefined;
+   807→  disabled: boolean;
+   808→  speakState: "idle" | "loading" | "playing";
+   809→  retryQuestion: string | undefined;
+   810→  onToggleFactors: (id: string) => void;
+   811→  onAsk: (question: string) => void;
+   812→  onCopy: (content: string) => void;
+   813→  onListen: (messageId: string) => void;
+   814→  onShare: (content: string) => void;
+   815→  onFeedback: (messageId: string, value: 1 | -1) => void;
+   816→}) {
+   817→  const factors = m.factors ?? [];
+   818→  const followUps = (m.followUps ?? []).slice(0, 3);
+   819→  return (
+   820→    <article className="msg-in max-w-[94%]">
+   821→      <div className="rounded-2xl rounded-tl-md border border-hairline bg-card p-4">
+   822→        {/* disclosure row */}
+   823→        {!m.failed ? (
+   824→          <button
+   825→            type="button"
+   826→            onClick={() => onToggleFactors(m.id)}
+   827→            aria-expanded={expanded}
+   828→            className="press -mx-1 -mt-1 flex w-full items-center justify-between gap-2 rounded-lg px-1 pt-1 text-left"
+   829→          >
+   830→            <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-primary">
+   831→              <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />
+   832→              {t("common.basedOnYourChart")}
+   833→            </span>
+   834→            <span className="text-[12px] font-medium text-muted-foreground">{t("common.why")}</span>
+   835→          </button>
+   836→        ) : null}
+   837→
+   838→        <p className="mt-2 whitespace-pre-wrap text-[14px] leading-[1.7] text-foreground">
+   839→          <HighlightedText text={m.content} />
+   840→        </p>
+   841→
+   842→        {/* factors panel */}
+   843→        <AnimatePresence initial={false}>
+   844→          {expanded ? (
+   845→            <motion.div
+   846→              key="factors"
+   847→              initial={{ height: 0, opacity: 0 }}
+   848→              animate={{ height: "auto", opacity: 1 }}
+   849→              exit={{ height: 0, opacity: 0 }}
+   850→              transition={{ duration: 0.2, ease: "easeOut" }}
+   851→              className="overflow-hidden"
+   852→            >
+   853→              <div className="mt-3 rounded-xl bg-secondary/60 p-3">
+   854→                <div className="flex items-center justify-between gap-2">
+   855→                  <p className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+   856→                    {t("ask.factorsTitle")}
+   857→                  </p>
+   858→                  <DemoDataBadge />
+   859→                </div>
+   860→                <p className="mt-1.5 text-[11.5px] leading-relaxed text-muted-foreground/85">{t("ask.factorsBody")}</p>
+   861→                <div className="mt-2.5 space-y-1.5">
+   862→                  {factors.length > 0 ? (
+   863→                    factors.map((f) => (
+   864→                      <div key={`${f.label}-${f.value}`} className="flex items-baseline justify-between gap-3">
+   865→                        <span className="shrink-0 text-[12px] font-medium text-muted-foreground">{f.label}</span>
+   866→                        <span className="text-right text-[12px] font-semibold text-foreground">{f.value}</span>
+   867→                      </div>
+   868→                    ))
+   869→                  ) : (
+   870→                    <p className="text-[12px] text-muted-foreground">{t("ask.factorsBody")}</p>
+   871→                  )}
+   872→                </div>
+   873→              </div>
+   874→            </motion.div>
+   875→          ) : null}
+   876→        </AnimatePresence>
+   877→
+   878→        {/* follow-up chips */}
+   879→        {followUps.length > 0 ? (
+   880→          <div className="mt-3">
+   881→            <p className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{t("ask.followUps")}</p>
+   882→            <div className="mt-1.5 flex flex-wrap gap-2">
+   883→              {followUps.map((q) => (
+   884→                <button
+   885→                  key={q}
+   886→                  type="button"
+   887→                  disabled={disabled}
+   888→                  onClick={() => onAsk(q)}
+   889→                  className="press rounded-full border border-primary/25 bg-primary/5 px-3.5 py-2 text-[12px] font-medium text-foreground/90 transition-colors hover:border-primary/40 hover:bg-primary/10 disabled:opacity-50"
+   890→                >
+   891→                  {q}
+   892→                </button>
+   893→              ))}
+   894→            </div>
+   895→          </div>
+   896→        ) : null}
+   897→
+   898→        {/* actions */}
+   899→        <div className="mt-3.5 flex items-center gap-1 border-t border-hairline/60 pt-2.5">
+   900→          {!m.failed ? (
+   901→            <button
+   902→              type="button"
+   903→              onClick={() => onListen(m.id)}
+   904→              aria-label={speakState === "playing" ? t("ask.stopListen") : speakState === "loading" ? t("ask.listenLoading") : t("ask.listen")}
+   905→              title={speakState === "playing" ? t("ask.stopListen") : t("ask.listen")}
+   906→              aria-pressed={speakState === "playing"}
+   907→              className={cn(
+   908→                "press flex h-10 w-10 items-center justify-center rounded-full transition-colors",
+   909→                speakState !== "idle" ? "bg-accent text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+   910→              )}
+   911→            >
+   912→              {speakState === "loading" ? (
+   913→                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />
+   914→              ) : speakState === "playing" ? (
+   915→                <span className="relative flex h-4 w-4 items-center justify-center">
+   916→                  <Square className="h-3.5 w-3.5 fill-primary" strokeWidth={1.75} />
+   917→                  <span className="absolute -right-1.5 flex h-2 items-end gap-[2px]" aria-hidden>
+   918→                    <span className="w-[2.5px] animate-[soundbar_0.9s_ease-in-out_infinite] rounded-full bg-primary" style={{ height: "6px", animationDelay: "0ms" }} />
+   919→                    <span className="w-[2.5px] animate-[soundbar_0.9s_ease-in-out_infinite] rounded-full bg-primary" style={{ height: "9px", animationDelay: "150ms" }} />
+   920→                  </span>
+   921→                </span>
+   922→              ) : (
+   923→                <Headphones className="h-4 w-4" strokeWidth={1.75} />
+   924→              )}
+   925→            </button>
+   926→          ) : null}
+   927→          <ActionIconButton icon={Copy} label={t("ask.copy")} onClick={() => onCopy(m.content)} />
+   928→          <ActionIconButton icon={Share2} label={t("ask.share")} onClick={() => onShare(m.content)} />
+   929→          <span className="mx-1 h-4 w-px bg-hairline" aria-hidden="true" />
+   930→          <ActionIconButton
+   931→            icon={ThumbsUp}
+   932→            label={t("ask.feedbackHelpful")}
+   933→            active={feedbackValue === 1}
+   934→            onClick={() => onFeedback(m.id, 1)}
+   935→          />
+   936→          <ActionIconButton
+   937→            icon={ThumbsDown}
+   938→            label={t("ask.feedbackNotHelpful")}
+   939→            active={feedbackValue === -1}
+   940→            onClick={() => onFeedback(m.id, -1)}
+   941→          />
+   942→          {retryQuestion ? (
+   943→            <button
+   944→              type="button"
+   945→              disabled={disabled}
+   946→              onClick={() => onAsk(retryQuestion)}
+   947→              className="press ml-auto mr-1 inline-flex h-9 items-center rounded-full text-[12.5px] font-semibold text-primary underline-offset-4 hover:underline disabled:opacity-50"
+   948→            >
+   949→              {t("common.retry")}
+   950→            </button>
+   951→          ) : null}
+   952→        </div>
+   953→      </div>
+   954→    </article>
+   955→  );
+   956→}
+   957→
+   958→function ActionIconButton({
+   959→  icon: Icon,
+   960→  label,
+   961→  onClick,
+   962→  active,
+   963→}: {
+   964→  icon: LucideIcon;
+   965→  label: string;
+   966→  onClick: () => void;
+   967→  active?: boolean;
+   968→}) {
+   969→  return (
+   970→    <button
+   971→      type="button"
+   972→      onClick={onClick}
+   973→      aria-label={label}
+   974→      title={label}
+   975→      aria-pressed={active}
+   976→      className={cn(
+   977→        "press flex h-10 w-10 items-center justify-center rounded-full transition-colors",
+   978→        active ? "bg-accent text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+   979→      )}
+   980→    >
+   981→      <Icon className="h-4 w-4" strokeWidth={1.75} />
+   982→    </button>
+   983→  );
+   984→}
+   985→
+   986→function HistorySheet({
+   987→  open,
+   988→  onOpenChange,
+   989→  query,
+   990→  activeId,
+   991→  onLoad,
+   992→  onClear,
+   993→}: {
+   994→  open: boolean;
+   995→  onOpenChange: (open: boolean) => void;
+   996→  query: { isLoading: boolean; data: { conversations: AiConversationSummaryDTO[] } | undefined };
+   997→  activeId: string | null;
+   998→  onLoad: (id: string) => void;
+   999→  onClear: () => void;
+  1000→}) {
+  1001→  const list = query.data?.conversations ?? [];
+  1002→  return (
+  1003→    <Sheet open={open} onOpenChange={onOpenChange}>
+  1004→      <SheetContent side="right" className="w-full p-0 sm:max-w-[350px]">
+  1005→        <SheetHeader className="border-b border-hairline pb-3">
+  1006→          <SheetTitle className="font-display text-[17px] font-semibold">{t("ask.history")}</SheetTitle>
+  1007→          <SheetDescription>{t("ask.historyBody")}</SheetDescription>
+  1008→        </SheetHeader>
+  1009→
+  1010→        <div className="scroll-thin min-h-0 flex-1 overflow-y-auto p-3">
+  1011→          {query.isLoading ? (
+  1012→            <div className="space-y-2.5">
+  1013→              <Skeleton className="h-16 w-full rounded-2xl" />
+  1014→              <Skeleton className="h-16 w-full rounded-2xl" />
+  1015→              <Skeleton className="h-16 w-full rounded-2xl" />
+  1016→            </div>
+  1017→          ) : list.length === 0 ? (
+  1018→            <p className="px-2 py-10 text-center text-[13px] leading-relaxed text-muted-foreground">
+  1019→              {t("ask.historyEmpty")}
+  1020→            </p>
+  1021→          ) : (
+  1022→            <ul className="space-y-2">
+  1023→              {list.map((c) => (
+  1024→                <li key={c.id}>
+  1025→                  <button
+  1026→                    type="button"
+  1027→                    onClick={() => onLoad(c.id)}
+  1028→                    className={cn(
+  1029→                      "press w-full rounded-2xl border border-hairline bg-card p-3.5 text-left hover:bg-secondary",
+  1030→                      c.id === activeId && "border-primary/40 bg-accent/40"
+  1031→                    )}
+  1032→                  >
+  1033→                    <p className="line-clamp-2 text-[13.5px] font-medium leading-snug text-foreground">{c.title}</p>
+  1034→                    <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+  1035→                      {formatDistanceToNow(new Date(c.updatedAt), { addSuffix: true })}
+  1036→                      {" · "}
+  1037→                      {c.messageCount === 1 ? t("ask.messagesOne") : t("ask.messagesMany", { count: c.messageCount })}
+  1038→                    </p>
+  1039→                  </button>
+  1040→                </li>
+  1041→              ))}
+  1042→            </ul>
+  1043→          )}
+  1044→        </div>
+  1045→
+  1046→        <SheetFooter className="border-t border-hairline">
+  1047→          <AlertDialog>
+  1048→            <AlertDialogTrigger asChild>
+  1049→              <Button
+  1050→                variant="outline"
+  1051→                disabled={list.length === 0}
+  1052→                className="h-11 w-full rounded-2xl text-destructive hover:bg-destructive/5 hover:text-destructive"
+  1053→              >
+  1054→                {t("ask.clearAll")}
+  1055→              </Button>
+  1056→            </AlertDialogTrigger>
+  1057→            <AlertDialogContent>
+  1058→              <AlertDialogHeader>
+  1059→                <AlertDialogTitle>{t("ask.clearConfirmTitle")}</AlertDialogTitle>
+  1060→                <AlertDialogDescription>{t("ask.clearConfirmBody")}</AlertDialogDescription>
+  1061→              </AlertDialogHeader>
+  1062→              <AlertDialogFooter>
+  1063→                <AlertDialogCancel className="h-11 rounded-full px-6">{t("common.cancel")}</AlertDialogCancel>
+  1064→                <AlertDialogAction
+  1065→                  onClick={onClear}
+  1066→                  className="h-11 rounded-full bg-destructive px-6 text-destructive-foreground hover:bg-destructive/90"
+  1067→                >
+  1068→                  {t("ask.clearConfirmAction")}
+  1069→                </AlertDialogAction>
+  1070→              </AlertDialogFooter>
+  1071→            </AlertDialogContent>
+  1072→          </AlertDialog>
+  1073→        </SheetFooter>
+  1074→      </SheetContent>
+  1075→    </Sheet>
+  1076→  );
+  1077→}
+  1078→
