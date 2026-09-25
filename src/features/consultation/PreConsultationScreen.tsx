@@ -25,11 +25,12 @@ import { Button } from "@/components/ui/button";
 
 const MIN_MINUTES = 3;
 
-const MODE_META: Record<ConsultationMode, { icon: typeof MessageCircle; title: string; body: string }> = {
+// labels resolve at call time so a locale switch re-labels the mode cards
+const modeMeta = (): Record<ConsultationMode, { icon: typeof MessageCircle; title: string; body: string }> => ({
   chat: { icon: MessageCircle, title: t("consultation.preChat"), body: t("consultation.preChatBody", { name: "" }) },
   audio: { icon: Phone, title: t("consultation.preAudio"), body: t("consultation.preAudioBody") },
   video: { icon: Video, title: t("consultation.preVideo"), body: t("consultation.preVideoBody") },
-};
+});
 
 function initials(name: string) {
   return name
@@ -106,7 +107,7 @@ export default function PreConsultationScreen() {
     );
   }
 
-  const meta = MODE_META[mode];
+  const meta = modeMeta()[mode];
   const ModeIcon = meta.icon;
   const modeBody =
     mode === "chat" ? t("consultation.preChatBody", { name: a.displayName }) : meta.body;

@@ -287,3 +287,21 @@ Stage Summary:
 - RESPONSIVE OVERHAUL COMPLETE & VERIFIED: mobile identical (VLM-confirmed), tablet = icon rail + 2-col adaptive layouts, desktop = full sidebar + wide grids/centered columns. All 30+ screens responsive via shared width-token system. 0 errors across all viewports.
 - Known acceptable items: sparse demo data makes list screens look empty on large screens; truncation-by-design on narrow cards; scroll-fold partial cards are normal.
 - Suggested next phase: email auth + i18n Hindi (architecture-ready), payment failure simulation in recharge UI, reports share-as-image, desktop hero polish (Home "Your day" card could get richer content at xl), carousel scroll arrows on desktop.
+
+---
+Task ID: HI-DICT
+Agent: general-purpose (Hindi dictionaries)
+Task: Create Hindi (hi) i18n dictionaries for all 11 feature domains
+
+Work Log:
+- Read worklog.md (last 3 sections) + i18n/index.ts to understand architecture (t() interpolation via {var} regex replace, per-feature dictionaries merged under locale keys).
+- Read all 11 en dictionaries in src/i18n/en/ (common, nav, onboarding, home, ask, astrology, astrologers, consultation, wallet, reports, profile — 770 keys total).
+- Checked en for nested objects BEFORE translating: all 11 are FLAT string dictionaries (verified via script — 0 nested values), so top-level parity == flattened parity; no nested-key flattening needed.
+- Grepped actual usages (home.currentPhase → dasha row, home.ends/endsAt, astrology.houseChip chips, transitQuestion/compatOutOf aria strings) to pick grammatically safe Hindi for interpolated values (e.g. "भाव {house}" postposed so plain numbers read naturally; "{max} में से" as standalone subtext).
+- Created src/i18n/hi/ with 11 files, same const names, same keys in same order, same export style. Tone: आप-form, warm/calm jyotish-elder voice; jyotish terms native Devanagari (नक्षत्र, तिथि, राहु काल, चौघड़िया, लग्न, राशि, ग्रह, दशा, कुंडली, गोचर for transit, वक्री for retrograde, भाव for house, स्वामी for lord); Tara kept in Latin; ₹ format, {placeholders}, "R" retrograde chip, "D1/D9", "4.0+", "UPI" kept as-is; DELETE confirm word kept Latin.
+- One fix after self-check: learnNakshatraBody originally said "तारा-समूह" (star-cluster) — rephrased to "तारों का समूह" so no "तारा" substring anywhere could read as transliterated brand.
+- Verification: (1) `bunx tsc --noEmit` → 0 errors in src/i18n (only pre-existing skills/ errors, untouched by me). (2) Required parity script → all 11 print OK. (3) Extended bun check → key ORDER identical, all hi values plain strings, every {placeholder} present exactly per key, no brand transliteration: "EXTENDED CHECKS CLEAN".
+
+Stage Summary:
+- COMPLETE: src/i18n/hi/{common,nav,onboarding,home,ask,astrology,astrologers,consultation,wallet,reports,profile}.ts created — 770/770 keys, parity OK ×11, tsc clean, placeholders intact.
+- Notes for main agent (wiring src/i18n/index.ts, which I did NOT touch): import hi dicts, add "hi" to Locale + LOCALES (label "हिन्दी"), register under dictionaries.hi. Decisions worth knowing: nav.ask="पूछें", astrologers tab="ज्योतिषी", compatibility="मिलान", transit="गोचर", retrograde="वक्री", reviews="समीक्षाएँ", pending status="लंबित"; "min"→"मिनट" everywhere ({rate}/मिनट); weekday/planet/zodiac names in Devanagari inside panchang/learn copy; FAQ cross-references use translated screen names (प्रोफ़ाइल → खाता हटाएँ) so they match the hi UI; astrologers faq5A references the 'पूछें' टैब. Input-locale caveat: long-form strings (astrology learn-* bodies ~ 2× en length) — fine in cards/accordion bodies, but verify Choghadiya hint + compat disclaimers don't wrap badly in tight mobile rows during visual QA.

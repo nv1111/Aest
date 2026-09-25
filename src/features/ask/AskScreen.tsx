@@ -66,7 +66,8 @@ import { cn } from "@/lib/utils";
 const CONV_STORAGE_KEY = "tara_ask_conversation";
 const MAX_MESSAGE_LENGTH = 500;
 
-const SUGGESTIONS: { icon: LucideIcon; label: string }[] = [
+// labels resolve at call time so a locale switch re-labels the suggestions
+const SUGGESTIONS = (): { icon: LucideIcon; label: string }[] => [
   { icon: Briefcase, label: t("ask.promptCareer") },
   { icon: Hourglass, label: t("ask.promptPhase") },
   { icon: Heart, label: t("ask.promptRelationships") },
@@ -664,7 +665,7 @@ function EmptyAsk({ busy, onAsk }: { busy: boolean; onAsk: (question: string) =>
           {t("ask.suggested")}
         </p>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          {SUGGESTIONS.map(({ icon: Icon, label }) => (
+          {SUGGESTIONS().map(({ icon: Icon, label }) => (
             <button
               key={label}
               type="button"

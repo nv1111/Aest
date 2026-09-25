@@ -1,6 +1,6 @@
 /**
- * i18n architecture. English ships today; dictionaries are per-feature so
- * feature agents own their strings. t("home.greeting") resolves across the
+ * i18n architecture. English + Hindi ship today; dictionaries are per-feature
+ * so feature agents own their strings. t("home.greeting") resolves across the
  * merged dictionary. Adding a language = adding a folder + locale switch.
  */
 
@@ -16,24 +16,53 @@ import wallet from "./en/wallet";
 import reports from "./en/reports";
 import profile from "./en/profile";
 
-export type Locale = "en";
-export const LOCALES: { code: Locale; label: string }[] = [{ code: "en", label: "English" }];
+import hiCommon from "./hi/common";
+import hiNav from "./hi/nav";
+import hiOnboarding from "./hi/onboarding";
+import hiHome from "./hi/home";
+import hiAsk from "./hi/ask";
+import hiAstrology from "./hi/astrology";
+import hiAstrologers from "./hi/astrologers";
+import hiConsultation from "./hi/consultation";
+import hiWallet from "./hi/wallet";
+import hiReports from "./hi/reports";
+import hiProfile from "./hi/profile";
 
-const dictionaries: Record<Locale, Record<string, unknown>> = {
-  en: {
-    common,
-    nav,
-    onboarding,
-    home,
-    ask,
-    astrology,
-    astrologers,
-    consultation,
-    wallet,
-    reports,
-    profile,
-  },
+export type Locale = "en" | "hi";
+export const LOCALES: { code: Locale; label: string; nativeLabel: string }[] = [
+  { code: "en", label: "English", nativeLabel: "English" },
+  { code: "hi", label: "Hindi", nativeLabel: "हिन्दी" },
+];
+
+const en: Record<string, unknown> = {
+  common,
+  nav,
+  onboarding,
+  home,
+  ask,
+  astrology,
+  astrologers,
+  consultation,
+  wallet,
+  reports,
+  profile,
 };
+
+const hi: Record<string, unknown> = {
+  common: hiCommon,
+  nav: hiNav,
+  onboarding: hiOnboarding,
+  home: hiHome,
+  ask: hiAsk,
+  astrology: hiAstrology,
+  astrologers: hiAstrologers,
+  consultation: hiConsultation,
+  wallet: hiWallet,
+  reports: hiReports,
+  profile: hiProfile,
+};
+
+const dictionaries: Record<Locale, Record<string, unknown>> = { en, hi };
 
 let currentLocale: Locale = "en";
 
@@ -45,15 +74,25 @@ export function getLocale(): Locale {
   return currentLocale;
 }
 
-/** t("home.greeting") → string; falls back to the key path if missing. */
+/** t("home.greeting") → string; falls back to English, then to the key path. */
 export function t(key: string, vars?: Record<string, string | number>): string {
-  const dict = dictionaries[currentLocale];
   const parts = key.split(".");
-  let node: unknown = dict;
-  for (const p of parts) {
-    if (typeof node !== "object" || node === null) return key;
-    node = (node as Record<string, unknown>)[p];
+
+  const lookup = (dict: Record<string, unknown>): unknown => {
+    let node: unknown = dict;
+    for (const p of parts) {
+      if (typeof node !== "object" || node === null) return undefined;
+      node = (node as Record<string, unknown>)[p];
+    }
+    return node;
+  };
+
+  let node = lookup(dictionaries[currentLocale]);
+  if (typeof node !== "string" && currentLocale !== "en") {
+    // missing key in the active locale → fall back to English
+    node = lookup(en);
   }
+
   let result = typeof node === "string" ? node : key;
   if (vars) {
     for (const [k, v] of Object.entries(vars)) {

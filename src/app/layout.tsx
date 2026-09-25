@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Fraunces } from "next/font/google";
+import { Geist, Geist_Mono, Fraunces, Noto_Sans_Devanagari, Noto_Serif_Devanagari } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
@@ -17,6 +17,19 @@ const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
   axes: ["SOFT", "WONK"],
+});
+
+// Devanagari companions — swapped in via html[lang="hi"] in globals.css so
+// Hindi renders in its own well-hinted type instead of a system fallback.
+const devanagariSans = Noto_Sans_Devanagari({
+  variable: "--font-devanagari",
+  subsets: ["devanagari"],
+  weight: ["400", "500", "600", "700"],
+});
+const devanagariSerif = Noto_Serif_Devanagari({
+  variable: "--font-devanagari-serif",
+  subsets: ["devanagari"],
+  weight: ["500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -41,7 +54,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} antialiased bg-background text-foreground`}
+        className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${devanagariSans.variable} ${devanagariSerif.variable} antialiased bg-background text-foreground`}
       >
         <Providers>{children}</Providers>
       </body>

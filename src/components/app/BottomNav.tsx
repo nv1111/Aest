@@ -5,7 +5,7 @@ import { useAppStore, type TabId } from "@/store/app";
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 
-const TABS: { id: TabId; icon: typeof Home; label: string }[] = [
+const tabItems = (): { id: TabId; icon: typeof Home; label: string }[] => [
   { id: "home", icon: Home, label: t("nav.home") },
   { id: "ask", icon: MessageCircle, label: t("nav.ask") },
   { id: "astrology", icon: Orbit, label: t("nav.astrology") },
@@ -17,6 +17,8 @@ const TABS: { id: TabId; icon: typeof Home; label: string }[] = [
 export function BottomNav() {
   const tab = useAppStore((s) => s.tab);
   const setTab = useAppStore((s) => s.setTab);
+  // labels re-resolve on every render so a locale switch re-labels the bar
+  const TABS = tabItems();
 
   return (
     <nav

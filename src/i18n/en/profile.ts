@@ -15,7 +15,9 @@ const profile = {
   editName: "Edit name",
   language: "Language",
   languageEnglish: "English",
-  languageNote: "More languages are on the way",
+  languageHindi: "हिन्दी",
+  languageNote: "Choose the language Tara speaks to you in",
+  languageChanged: "Language updated",
   // ---------------------------------------------------------------- profiles
   birthProfiles: "Birth profiles",
   birthProfilesBody: "Manage the charts Tara uses",

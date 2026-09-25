@@ -122,6 +122,16 @@
   }
 }
 
+/* ---------- Hindi typography ---------- */
+/* When the app locale is Hindi, the font variables swap to Devanagari fonts.
+   Noto Sans/Serif Devanagari carry Latin glyphs too, so mixed script (Tara,
+   UPI, AM/PM) still renders consistently. The base + display stacks both
+   re-target via the same variable names Tailwind inlines. */
+html[lang="hi"] {
+  --font-geist-sans: var(--font-devanagari), ui-sans-serif, system-ui, sans-serif;
+  --font-fraunces: var(--font-devanagari-serif), Georgia, serif;
+}
+
 /* ---------- shared app utilities ---------- */
 
 .font-display {

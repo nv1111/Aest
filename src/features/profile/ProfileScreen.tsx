@@ -26,7 +26,8 @@ import { useMe, useRefreshMe } from "@/hooks/useSession";
 import { userService } from "@/services/user";
 import { authService } from "@/services/auth";
 import { useAppStore } from "@/store/app";
-import { t } from "@/i18n";
+import { useLocaleStore } from "@/store/locale";
+import { t, LOCALES } from "@/i18n";
 import { formatDateIN, formatINR } from "@/lib/money";
 import { errorMessage } from "@/lib/http";
 import { PageSkeleton } from "@/components/shared/PageSkeleton";
@@ -134,17 +135,7 @@ export function ProfileScreen() {
           <GroupLabel>{t("profile.groupAccount")}</GroupLabel>
           <ListGroup>
             <PersonalInfoDialog name={user.name ?? ""} />
-            <ListRow
-              icon={Languages}
-              title={t("profile.language")}
-              sub={t("profile.languageNote")}
-              right={
-                <span className="flex items-center gap-1.5 text-[13.5px] font-medium text-foreground">
-                  {t("profile.languageEnglish")}
-                  <Check className="h-4 w-4 text-success" strokeWidth={2.25} />
-                </span>
-              }
-            />
+            <LanguageDialog />
           </ListGroup>
         </section>
 
@@ -345,6 +336,88 @@ function PersonalInfoDialog({ name }: { name: string }) {
             {save.isPending ? t("common.loading") : t("common.save")}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------- language
+
+function LanguageDialog() {
+  const locale = useLocaleStore((s) => s.locale);
+  const changeLocale = useLocaleStore((s) => s.changeLocale);
+  const [open, setOpen] = useState(false);
+
+  const current = LOCALES.find((l) => l.code === locale);
+
+  const pick = (code: (typeof LOCALES)[number]["code"]) => {
+    changeLocale(code);
+    // t() reads the new locale synchronously — the toast confirms in it.
+    toast.success(t("profile.languageChanged"));
+    setOpen(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="press flex min-h-13 w-full items-center gap-3.5 px-4 py-2.5 text-left hover:bg-secondary/60"
+          aria-label={t("profile.language")}
+        >
+          <span className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground/75">
+            <Languages className="h-4.5 w-4.5" strokeWidth={1.75} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[14px] font-medium">{t("profile.language")}</span>
+            <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">{t("profile.languageNote")}</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span className="text-[13.5px] font-medium text-foreground">{current?.nativeLabel}</span>
+            <ChevronRight className="h-4.5 w-4.5 shrink-0 text-muted-foreground" />
+          </span>
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-[360px] rounded-3xl sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-left font-display">{t("profile.language")}</DialogTitle>
+          <DialogDescription className="text-left">{t("profile.languageNote")}</DialogDescription>
+        </DialogHeader>
+        <div role="radiogroup" aria-label={t("profile.language")} className="space-y-2">
+          {LOCALES.map((l) => {
+            const active = locale === l.code;
+            return (
+              <button
+                key={l.code}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => pick(l.code)}
+                className={
+                  "press flex w-full items-center justify-between gap-3 rounded-2xl border p-4 text-left transition-colors " +
+                  (active ? "border-primary/40 bg-accent/60" : "bg-card hover:bg-secondary/70")
+                }
+              >
+                <span className="flex items-center gap-3.5">
+                  <span
+                    aria-hidden
+                    className={
+                      "flex h-9 w-9 items-center justify-center rounded-xl text-[13px] font-semibold " +
+                      (active ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground/75")
+                    }
+                  >
+                    {l.code === "hi" ? "अ" : "A"}
+                  </span>
+                  <span>
+                    <span className="block text-[14.5px] font-semibold">{l.nativeLabel}</span>
+                    <span className="mt-0.5 block text-[12px] text-muted-foreground">{l.label}</span>
+                  </span>
+                </span>
+                {active ? <Check className="h-4.5 w-4.5 shrink-0 text-success" strokeWidth={2.25} /> : null}
+              </button>
+            );
+          })}
+        </div>
       </DialogContent>
     </Dialog>
   );

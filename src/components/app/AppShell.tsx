@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMe, useAppOpenedTracking } from "@/hooks/useSession";
 import { useCurrentScreen } from "@/store/app";
+import { useLocaleStore } from "@/store/locale";
 import { ScreenFor, withSuspense } from "./screens";
 import { AppSidebar } from "./AppSidebar";
 import { BottomNav } from "./BottomNav";
@@ -25,6 +26,7 @@ export function AppShell() {
   useAppOpenedTracking();
   const me = useMe();
   const screen = useCurrentScreen();
+  const locale = useLocaleStore((s) => s.locale);
   const [booted, setBooted] = useState(false);
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export function AppShell() {
     return (
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
-          key={`${screen.id}?${JSON.stringify(screen.params ?? {})}`}
+          key={`${screen.id}?${JSON.stringify(screen.params ?? {})}-${locale}`}
           initial={{ opacity: 0, x: 14 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -10 }}

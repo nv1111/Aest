@@ -16,7 +16,7 @@ import { useAppStore, useCurrentScreen, type TabId } from "@/store/app";
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 
-const PRIMARY: { id: TabId; icon: typeof Home; label: string }[] = [
+const primaryItems = (): { id: TabId; icon: typeof Home; label: string }[] => [
   { id: "home", icon: Home, label: t("nav.home") },
   { id: "ask", icon: MessageCircle, label: t("nav.ask") },
   { id: "astrology", icon: Orbit, label: t("nav.astrology") },
@@ -25,13 +25,13 @@ const PRIMARY: { id: TabId; icon: typeof Home; label: string }[] = [
 ];
 
 /** Destinations that live inside a tab's stack (quick links on desktop). */
-const QUICK: {
+const quickItems = (): {
   tab: TabId;
   screen: { id: string };
   icon: typeof Home;
   label: string;
   active: (screenId: string) => boolean;
-}[] = [
+}[] => [
   {
     tab: "profile",
     screen: { id: "wallet.home" },
@@ -72,6 +72,9 @@ export function AppSidebar() {
   const setTab = useAppStore((s) => s.setTab);
   const openInTab = useAppStore((s) => s.openInTab);
   const current = useCurrentScreen();
+  // labels re-resolve on every render so a locale switch re-labels the rail
+  const PRIMARY = primaryItems();
+  const QUICK = quickItems();
 
   const quickActive = QUICK.some((q) => q.active(current.id));
 

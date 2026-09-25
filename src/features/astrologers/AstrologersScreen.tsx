@@ -49,7 +49,8 @@ const BASE_EXPERTISE = [
 ];
 const BASE_LANGUAGES = ["English", "Hindi"];
 
-const PRICE_OPTIONS: { value: PriceBucket; label: string }[] = [
+// option labels resolve at call time so a locale switch re-labels the filters
+const PRICE_OPTIONS = (): { value: PriceBucket; label: string }[] => [
   { value: "any", label: t("astrologers.priceAny") },
   { value: "under15", label: t("astrologers.priceUnder15") },
   { value: "r15to20", label: t("astrologers.price15to20") },
@@ -57,20 +58,20 @@ const PRICE_OPTIONS: { value: PriceBucket; label: string }[] = [
   { value: "r25plus", label: t("astrologers.price25plus") },
 ];
 
-const RATING_OPTIONS: { value: RatingFloor; label: string }[] = [
+const RATING_OPTIONS = (): { value: RatingFloor; label: string }[] => [
   { value: "any", label: t("astrologers.ratingAny") },
   { value: "4", label: t("astrologers.rating40") },
   { value: "4.5", label: t("astrologers.rating45") },
 ];
 
-const EXPERIENCE_OPTIONS: { value: ExperienceFloor; label: string }[] = [
+const EXPERIENCE_OPTIONS = (): { value: ExperienceFloor; label: string }[] => [
   { value: "any", label: t("astrologers.experienceAny") },
   { value: "5", label: t("astrologers.experience5") },
   { value: "10", label: t("astrologers.experience10") },
   { value: "20", label: t("astrologers.experience20") },
 ];
 
-const MODE_OPTIONS: { value: ModeFilter; label: string }[] = [
+const MODE_OPTIONS = (): { value: ModeFilter; label: string }[] => [
   { value: "any", label: t("astrologers.anyMode") },
   { value: "chat", label: t("astrologers.modeChat") },
   { value: "audio", label: t("astrologers.modeAudio") },
@@ -432,7 +433,7 @@ function FilterSheet({
           </FilterGroup>
 
           <FilterGroup label={t("astrologers.price")}>
-            {PRICE_OPTIONS.map((p) => (
+            {PRICE_OPTIONS().map((p) => (
               <FilterChip
                 key={p.value}
                 label={p.label}
@@ -443,7 +444,7 @@ function FilterSheet({
           </FilterGroup>
 
           <FilterGroup label={t("astrologers.rating")}>
-            {RATING_OPTIONS.map((r) => (
+            {RATING_OPTIONS().map((r) => (
               <FilterChip
                 key={r.value}
                 label={r.label}
@@ -454,7 +455,7 @@ function FilterSheet({
           </FilterGroup>
 
           <FilterGroup label={t("astrologers.experience")}>
-            {EXPERIENCE_OPTIONS.map((e) => (
+            {EXPERIENCE_OPTIONS().map((e) => (
               <FilterChip
                 key={e.value}
                 label={e.label}
@@ -465,7 +466,7 @@ function FilterSheet({
           </FilterGroup>
 
           <FilterGroup label={t("astrologers.mode")}>
-            {MODE_OPTIONS.map((m) => (
+            {MODE_OPTIONS().map((m) => (
               <FilterChip
                 key={m.value}
                 label={m.label}
