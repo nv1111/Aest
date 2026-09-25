@@ -15,7 +15,7 @@
  */
 
 import { randomBytes } from "crypto";
-import type { PaymentProvider, PaymentStatus } from "./types";
+import type { PaymentCreateOptions, PaymentProvider, PaymentStatus } from "./types";
 
 const PROVIDER_ID = "mock-gateway";
 const PROVIDER_LABEL = "Demo payments (mock gateway)";
@@ -47,8 +47,10 @@ export function getMockPaymentProvider(): PaymentProvider {
     id: PROVIDER_ID,
     label: PROVIDER_LABEL,
     mode: "mock",
-    async createPayment(userId, amount, method) {
-      const paymentId = randomBytes(12).toString("hex");
+    async createPayment(userId, amount, method, options?: PaymentCreateOptions) {
+      let paymentId = randomBytes(12).toString("hex");
+      // DEMO lever: deterministic decline when the caller asks for it.
+      if (options?.forceFail) paymentId = "0" + paymentId.slice(1);
       ledger.set(paymentId, { userId, amount, method, createdAt: Date.now() });
       return { paymentId, status: "created" };
     },

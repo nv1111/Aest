@@ -11,6 +11,8 @@ const bodySchema = z.object({
     .min(50, "Minimum recharge is ₹50")
     .max(25000, "Maximum recharge is ₹25,000"),
   method: z.enum(["upi", "card", "netbanking"]),
+  /** DEMO ONLY — asks the mock gateway to end this attempt as "failed". */
+  simulateFail: z.boolean().optional(),
 });
 
 /**
@@ -26,7 +28,9 @@ export async function POST(req: NextRequest) {
   if (isParseFailure(body)) return body;
 
   const provider = getPaymentProvider();
-  const creation = await provider.createPayment(auth.user.id, body.amount, body.method);
+  const creation = await provider.createPayment(auth.user.id, body.amount, body.method, {
+    forceFail: provider.mode === "mock" && body.simulateFail === true,
+  });
 
   const payment = await db.payment.create({
     data: {

@@ -25,12 +25,22 @@ export interface PaymentStatusInfo {
   gatewayRef?: string;
 }
 
+export interface PaymentCreateOptions {
+  /** DEMO ONLY — force this attempt to end "failed" (deterministic decline). */
+  forceFail?: boolean;
+}
+
 export interface PaymentProvider {
   readonly id: string;
   readonly label: string;
   /** "mock" for demo gateways, "live" for real money. */
   readonly mode: "mock" | "live";
-  createPayment(userId: string, amount: number, method: PaymentMethod): Promise<PaymentCreation>;
+  createPayment(
+    userId: string,
+    amount: number,
+    method: PaymentMethod,
+    options?: PaymentCreateOptions
+  ): Promise<PaymentCreation>;
   getStatus(paymentId: string): Promise<PaymentStatusInfo>;
 }
 

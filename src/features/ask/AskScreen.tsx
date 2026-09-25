@@ -30,6 +30,7 @@ import {
 import { useMe } from "@/hooks/useSession";
 import { useAppStore, useCurrentScreen } from "@/store/app";
 import { t } from "@/i18n";
+import { useLocaleStore } from "@/store/locale";
 import { trackEvent } from "@/lib/analytics";
 import { ApiError, errorMessage } from "@/lib/http";
 import { aiService, type AiConversationSummaryDTO, type AskMessageDTO } from "@/services/ai";
@@ -222,7 +223,9 @@ export default function AskScreen() {
       const controller = new AbortController();
       abortRef.current = controller;
       try {
-        const result = await aiService.ask(question, activeId ?? undefined, controller.signal);
+        // Reply language follows the app locale (server-side instruction).
+        const locale = useLocaleStore.getState().locale;
+        const result = await aiService.ask(question, activeId ?? undefined, controller.signal, locale);
         trackEvent("ai_question_asked");
         qc.setQueryData<AskMessageDTO[]>(["ai-messages", result.conversationId], (old) =>
           old ? [...old, ...result.messages] : [...result.messages]

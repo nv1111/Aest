@@ -65,6 +65,8 @@ const astrologers = {
   errorTitle: "ज्योतिषी नहीं दिख पाए",
   notFoundTitle: "ज्योतिषी नहीं मिला",
   notFoundBody: "हो सकता है यह प्रोफ़ाइल हटा दी गई हो।",
+  carouselBack: "पिछले",
+  carouselForward: "अगले",
 };
 
 export default astrologers;

@@ -305,3 +305,30 @@ Work Log:
 Stage Summary:
 - COMPLETE: src/i18n/hi/{common,nav,onboarding,home,ask,astrology,astrologers,consultation,wallet,reports,profile}.ts created — 770/770 keys, parity OK ×11, tsc clean, placeholders intact.
 - Notes for main agent (wiring src/i18n/index.ts, which I did NOT touch): import hi dicts, add "hi" to Locale + LOCALES (label "हिन्दी"), register under dictionaries.hi. Decisions worth knowing: nav.ask="पूछें", astrologers tab="ज्योतिषी", compatibility="मिलान", transit="गोचर", retrograde="वक्री", reviews="समीक्षाएँ", pending status="लंबित"; "min"→"मिनट" everywhere ({rate}/मिनट); weekday/planet/zodiac names in Devanagari inside panchang/learn copy; FAQ cross-references use translated screen names (प्रोफ़ाइल → खाता हटाएँ) so they match the hi UI; astrologers faq5A references the 'पूछें' टैब. Input-locale caveat: long-form strings (astrology learn-* bodies ~ 2× en length) — fine in cards/accordion bodies, but verify Choghadiya hint + compat disclaimers don't wrap badly in tight mobile rows during visual QA.
+
+---
+Task ID: 6-hindi
+Agent: main (Z.ai Code)
+Task: Hindi locale launch — i18n dictionaries, language switcher, Devanagari typography, locale-aware Ask AI + round polish (DayCard xl, carousel arrows, payment failure simulation)
+
+Work Log:
+- HI-DICT subagent created src/i18n/hi/*.ts (11 files, 770/770 key parity, flat string maps, warm simple Hindi; jyotish terms natural Devanagari; Tara brand kept Latin).
+- i18n/index.ts: Locale = "en" | "hi", LOCALES with nativeLabels, en-fallback on missing keys, merged hi dictionary.
+- New store src/store/locale.ts: zustand + localStorage("tara.locale") persistence, syncs i18n module + document.documentElement.lang; init reads storage before first render.
+- AppShell subscribes to locale; screen motion key includes locale → full remount on switch (no stale strings).
+- FIXED module-scope t() bugs (labels would never update on locale switch): AppSidebar/BottomNav nav arrays, AstrologersScreen filter option arrays, AskScreen SUGGESTIONS, PreConsultationScreen MODE_META — all converted to call-time functions.
+- ProfileScreen: static language row → LanguageDialog (radiogroup, endonym labels "English"/"हिन्दी", अ/A glyph tiles, Check on active, toast confirms in NEW locale).
+- Typography: layout.tsx loads Noto_Sans_Devanagari + Noto_Serif_Devanagari; globals.css html[lang="hi"] swaps --font-geist-sans/--font-fraunces → Devanagari fonts (Latin glyphs included in Noto, mixed script renders consistently).
+- Locale-aware AI: /api/ask/message accepts locale ("en"|"hi"), appends HINDI_INSTRUCTION to system prompt (answer/followUps/factors-labels in Hindi, आप form, jyotish terms, digits plain); aiService.ask passes locale; AskScreen reads useLocaleStore.getState().locale. Verified live: Hindi question → full chart-grounded Hindi reply with follow-ups.
+- TTS: tested Devanagari via z-ai CLI — works with existing voice, no change needed.
+- BUG FIX (payments): settle() was passing Prisma row UUID to provider.getStatus() instead of payment.gatewayRef — decline logic read the wrong "first hex char". Now getStatus(payment.gatewayRef ?? payment.id).
+- Payment failure simulation feature: PaymentCreateOptions.forceFail on provider interface; mock provider prefixes "0" (deterministic decline); /api/wallet/recharge accepts simulateFail (mock-mode only); RechargeScreen gets a demo switch (warning-tinted, role="switch"); FailedView maps the English demo reason to UI locale via wallet.failureReasonDeclined.
+- Styling polish: DayCard md+ 2-col (headline/body/sunrise-sunset left; factor rows with vertical divider right; mobile pills untouched via dual-render); new shared CarouselRow component (md+ prev/next arrows that fade at track ends, ResizeObserver re-measure, a11y labels + region role) wired into all 3 AstrologersScreen carousels.
+- New i18n keys in BOTH dicts: profile.languageHindi/languageNote/languageChanged, astrologers.carouselBack/carouselForward, wallet.simulateFail/simulateFailNote/failureReasonDeclined.
+- QA via agent-browser @ http://localhost:81/: desktop 1440 + mobile 390, Hindi + English. Language switch live + persists across reload; VLM verified clean Devanagari (no tofu, no clipping) on desktop/mobile/ask-chat; Hindi AI answer verified; payment fail flow E2E (toggle→pay→"भुगतान पूरा नहीं हुआ"→reason in Hindi→retry→success ₹1,117); carousel arrows scroll 0→336px, display:none on mobile; DayCard mobile = 3 pills + height 141px unchanged; console 0 errors; dev.log all 200s; tsc + lint clean.
+
+Stage Summary:
+- HINDI LAUNCH COMPLETE: full-app Hindi (UI chrome + AI answers + TTS + payment reasons), switchable from Profile, persisted. Mobile pixel-unchanged (dual-render pattern); desktop gains DayCard 2-col detail + carousel arrows.
+- Fixed pre-existing payment settlement bug (wrong ref to provider.getStatus).
+- All verifications green; no known regressions.
+- Next candidates: onboarding language step (Hindi discoverable at first run), reports share-as-image, Panchang date navigation, deeper Hindi for demo engine strings (insight.factors currently English from API), email auth.

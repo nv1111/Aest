@@ -18,6 +18,8 @@ import { toDto, readingFailedText, type Factor } from "../_lib/dto";
 const bodySchema = z.object({
   message: z.string().trim().min(1).max(500),
   conversationId: z.string().uuid().optional(),
+  /** UI language — the reply language follows the user's app locale. */
+  locale: z.enum(["en", "hi"]).optional(),
 });
 
 interface ModelAnswer {
@@ -40,6 +42,9 @@ Rules you must follow:
 
 Reply with STRICT JSON only — no markdown fences, no commentary before or after. The exact shape:
 {"answer":"...","followUps":["...","...","..."],"factors":[{"label":"...","value":"..."}]}`;
+
+/** Language instruction appended when the user's app locale is Hindi. */
+const HINDI_INSTRUCTION = `\n\nLANGUAGE: Reply in Hindi (Devanagari script) — warm, simple Hindi (आप form) that a first-time user understands. The "answer" and "followUps" must be entirely in Hindi. The factors "label" fields in Hindi too (e.g. "वर्तमान महादशा", "गुरु गोचर"); factor "value" fields may use standard Hindi jyotish names (शनि, गुरु, मेष) — keep any dates/numbers in plain digits. If the user writes in English or Hinglish, still reply in Hindi.`;
 
 // ------------------------------------------------------------- llm helpers
 
@@ -193,7 +198,7 @@ export async function POST(req: NextRequest) {
   const turns: { role: "assistant" | "user"; content: string }[] = [
     {
       role: "assistant",
-      content: `${SYSTEM_PROMPT}\n\nUSER'S CHART CONTEXT (the only astrology data you may use):\n${JSON.stringify(chartContext)}`,
+      content: `${SYSTEM_PROMPT}${body.locale === "hi" ? HINDI_INSTRUCTION : ""}\n\nUSER'S CHART CONTEXT (the only astrology data you may use):\n${JSON.stringify(chartContext)}`,
     },
     ...priorTurns,
     { role: "user", content: body.message },

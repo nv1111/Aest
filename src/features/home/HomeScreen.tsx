@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Bell, Sparkles, ArrowRight, Sun, MoonStar, Clock3, Hourglass, ChevronRight } from "lucide-react";
+import { Bell, Sparkles, ArrowRight, Sun, MoonStar, Clock3, Hourglass, ChevronRight, Sunrise, Sunset } from "lucide-react";
 import { useMe } from "@/hooks/useSession";
 import { astrologyService } from "@/services/astrology";
 import { http, errorMessage } from "@/lib/http";
@@ -384,21 +384,46 @@ function DayCard({ data }: { data: HomeAstrology }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
-      className="tara-hero relative overflow-hidden rounded-3xl border bg-card p-5"
+      className="tara-hero relative overflow-hidden rounded-3xl border bg-card p-5 md:p-6"
     >
-      <p className="font-display text-[19px] font-semibold leading-snug tracking-tight">
-        {data.insight.headline}
-      </p>
-      <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{data.insight.body}</p>
-      <div className="mt-5 flex flex-wrap gap-2">
-        {data.insight.factors.map((f) => (
-          <span
-            key={f.label}
-            className="rounded-full bg-secondary px-3 py-1.5 text-[11px] font-medium leading-none text-secondary-foreground"
-          >
-            {f.label}: <span className="font-semibold text-foreground">{f.value}</span>
-          </span>
-        ))}
+      <div className="md:grid md:grid-cols-[1.35fr_1fr] md:gap-8">
+        <div>
+          <p className="font-display text-[19px] font-semibold leading-snug tracking-tight">
+            {data.insight.headline}
+          </p>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">{data.insight.body}</p>
+          {/* desktop detail — the day's light window, one calm line */}
+          <div className="mt-5 hidden items-center gap-4 border-t border-hairline/60 pt-4 text-[12px] text-muted-foreground md:flex">
+            <span className="flex items-center gap-1.5">
+              <Sunrise className="h-3.5 w-3.5 text-warning" strokeWidth={1.75} aria-hidden />
+              {t("home.sunrise")} <span className="font-semibold text-foreground">{data.today.sunrise}</span>
+            </span>
+            <span aria-hidden className="h-1 w-1 rounded-full bg-hairline" />
+            <span className="flex items-center gap-1.5">
+              <Sunset className="h-3.5 w-3.5 text-primary/70" strokeWidth={1.75} aria-hidden />
+              {t("home.sunset")} <span className="font-semibold text-foreground">{data.today.sunset}</span>
+            </span>
+          </div>
+        </div>
+        {/* factors — wrapped pills on mobile (unchanged), stacked rows on md+ */}
+        <div className="mt-5 flex flex-wrap gap-2 md:mt-0 md:content-start md:border-l md:border-hairline/60 md:pl-6">
+          {data.insight.factors.map((f) => (
+            <span
+              key={f.label}
+              className="rounded-full bg-secondary px-3 py-1.5 text-[11px] font-medium leading-none text-secondary-foreground md:hidden"
+            >
+              {f.label}: <span className="font-semibold text-foreground">{f.value}</span>
+            </span>
+          ))}
+          <div className="hidden w-full md:block">
+            {data.insight.factors.map((f) => (
+              <div key={f.label} className="border-b border-hairline/60 py-2.5 last:border-0">
+                <p className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{f.label}</p>
+                <p className="mt-0.5 text-[13px] font-semibold text-foreground">{f.value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </motion.div>
   );

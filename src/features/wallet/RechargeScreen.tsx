@@ -32,13 +32,14 @@ export function RechargeScreen() {
   const [preset, setPreset] = useState<number | null>(499);
   const [custom, setCustom] = useState("");
   const [method, setMethod] = useState<RechargeMethod>("upi");
+  const [simulateFail, setSimulateFail] = useState(false);
 
   const customAmount = custom.trim() === "" ? null : Number(custom);
   const amount = customAmount ?? preset;
   const valid = amount != null && Number.isInteger(amount) && amount >= 50 && amount <= 25000;
 
   const mutation = useMutation({
-    mutationFn: () => walletService.recharge(amount as number, method),
+    mutationFn: () => walletService.recharge(amount as number, method, simulateFail),
     onSuccess: (res) => {
       push({ id: "payment.result", params: { paymentId: res.payment.id } });
     },
@@ -155,6 +156,39 @@ export function RechargeScreen() {
         </section>
 
         <TrustNote variant="info">{t("wallet.demoPayment")}</TrustNote>
+
+        {/* demo lever — deterministic decline so the failure flow is testable */}
+        <button
+          type="button"
+          role="switch"
+          aria-checked={simulateFail}
+          onClick={() => setSimulateFail((v) => !v)}
+          className={cn(
+            "press flex w-full items-center gap-3.5 rounded-2xl border p-4 text-left transition-colors",
+            simulateFail ? "border-warning/50 bg-warning/10" : "border-border bg-card hover:bg-secondary"
+          )}
+        >
+          <span
+            aria-hidden
+            className={cn(
+              "relative h-6 w-10.5 shrink-0 rounded-full transition-colors",
+              simulateFail ? "bg-warning" : "bg-border"
+            )}
+          >
+            <span
+              className={cn(
+                "absolute top-0.5 h-5 w-5 rounded-full bg-background shadow-sm transition-transform",
+                simulateFail ? "translate-x-5" : "translate-x-0.5"
+              )}
+            />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13.5px] font-semibold">{t("wallet.simulateFail")}</span>
+            <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">
+              {t("wallet.simulateFailNote")}
+            </span>
+          </span>
+        </button>
 
         <div className="pt-1">
           <Button

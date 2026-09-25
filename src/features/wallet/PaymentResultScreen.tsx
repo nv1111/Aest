@@ -158,6 +158,12 @@ function SuccessView({ amount, balance }: { amount: number; balance?: number }) 
   );
 }
 
+/** The demo gateway persists English reasons — map the known one to the UI locale. */
+function localizedReason(reason: string): string {
+  if (reason === "Your bank declined the payment (demo)") return t("wallet.failureReasonDeclined");
+  return reason;
+}
+
 function FailedView({
   amount,
   reason,
@@ -169,6 +175,7 @@ function FailedView({
 }) {
   const backToWallet = useBackToWallet();
   const replace = useAppStore((s) => s.replace);
+  const reasonText = reason ? localizedReason(reason) : null;
 
   const retry = useMutation({
     mutationFn: () => walletService.recharge(amount, method as RechargeMethod),
@@ -192,10 +199,10 @@ function FailedView({
       <p className="mt-2 max-w-[300px] text-[14px] leading-relaxed text-muted-foreground">
         {t("wallet.failedBody")}
       </p>
-      {reason ? (
+      {reasonText ? (
         <p className="mt-3 rounded-xl bg-secondary/70 px-3.5 py-2.5 text-left text-[12.5px] leading-relaxed text-secondary-foreground">
           <span className="font-semibold text-foreground">{t("wallet.failureReasonLabel")}: </span>
-          {reason}
+          {reasonText}
         </p>
       ) : null}
       <div className="mt-8 w-full max-w-[320px] space-y-2.5">

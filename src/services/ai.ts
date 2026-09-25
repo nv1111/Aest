@@ -64,8 +64,8 @@ export const aiService = {
   messages: (conversationId: string) =>
     http.get<{ messages: AskMessageDTO[] }>(`/api/ask/messages?conversationId=${encodeURIComponent(conversationId)}`),
 
-  ask: (message: string, conversationId?: string, signal?: AbortSignal) =>
-    postWithSignal<AskMessageResult>("/api/ask/message", { message, conversationId }, signal),
+  ask: (message: string, conversationId?: string, signal?: AbortSignal, locale?: "en" | "hi") =>
+    postWithSignal<AskMessageResult>("/api/ask/message", { message, conversationId, locale }, signal),
 
   feedback: (messageId: string, feedback: 1 | -1) =>
     postWithSignal<{ messageId: string; feedback: number }>("/api/ask/feedback", { messageId, feedback }),

@@ -79,8 +79,10 @@ async function settle(paymentId: string): Promise<Payment | null> {
     const payment = await tx.payment.findUnique({ where: { id: paymentId } });
     if (!payment || TERMINAL.has(payment.status)) return payment;
 
-    // Deterministic demo verdict (mock provider: first hex char of the id).
-    const gateway = await provider.getStatus(payment.id);
+    // Deterministic demo verdict — the PROVIDER reference, not our row id.
+    // (The mock gateway's decline logic keys off its own hex ref; passing the
+    // Prisma UUID here would silently read a different "first hex char".)
+    const gateway = await provider.getStatus(payment.gatewayRef ?? payment.id);
 
     if (gateway.status === "failed") {
       return tx.payment.update({

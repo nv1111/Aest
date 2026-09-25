@@ -21,8 +21,8 @@ export const walletService = {
   transactions: (limit = 50) =>
     http.get<{ transactions: WalletTransactionDTO[] }>(`/api/wallet/transactions?limit=${limit}`),
 
-  recharge: (amount: number, method: RechargeMethod) =>
-    http.post<{ payment: PaymentDTO }>("/api/wallet/recharge", { amount, method }),
+  recharge: (amount: number, method: RechargeMethod, simulateFail?: boolean) =>
+    http.post<{ payment: PaymentDTO }>("/api/wallet/recharge", { amount, method, simulateFail }),
 
   payment: (id: string) => http.get<PaymentStateDTO>(`/api/payments/${id}`),
 };

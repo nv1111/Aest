@@ -10,6 +10,7 @@ import { trackEvent } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import type { AstrologerDTO } from "@/types/models";
 import { AstrologerCard } from "@/components/shared/AstrologerCard";
+import { CarouselRow } from "@/components/shared/CarouselRow";
 import { ContentColumn } from "@/components/shared/content-width";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -226,38 +227,26 @@ export default function AstrologersScreen() {
             {onlineNow.length > 0 ? (
               <section aria-label={t("astrologers.onlineNow")}>
                 <SectionHeader>{t("astrologers.onlineNow")}</SectionHeader>
-                <div className="relative -mx-4 md:-mx-6">
-                  <div className="scroll-thin flex gap-3 overflow-x-auto px-4 pb-1 md:px-6">
+                <CarouselRow label={t("astrologers.onlineNow")}>
                     {onlineNow.map((a) => (
                       <div key={a.id} className="w-[236px] shrink-0 md:w-[264px] lg:w-[288px]">
                         <AstrologerCard a={a} compact onClick={() => openProfile(a)} />
                       </div>
                     ))}
-                  </div>
-                  <div
-                    className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent"
-                    aria-hidden
-                  />
-                </div>
+                </CarouselRow>
               </section>
             ) : null}
 
             {soon.length > 0 ? (
               <section aria-label={t("astrologers.availableSoon")}>
                 <SectionHeader>{t("astrologers.availableSoon")}</SectionHeader>
-                <div className="relative -mx-4 md:-mx-6">
-                  <div className="scroll-thin flex gap-3 overflow-x-auto px-4 pb-1 md:px-6">
+                <CarouselRow label={t("astrologers.availableSoon")}>
                     {soon.map((a) => (
                       <div key={a.id} className="w-[236px] shrink-0 md:w-[264px] lg:w-[288px]">
                         <AstrologerCard a={a} compact onClick={() => openProfile(a)} />
                       </div>
                     ))}
-                  </div>
-                  <div
-                    className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent"
-                    aria-hidden
-                  />
-                </div>
+                </CarouselRow>
               </section>
             ) : null}
 
@@ -273,13 +262,13 @@ export default function AstrologersScreen() {
             {newlyVerified.length > 0 ? (
               <section aria-label={t("astrologers.newVerified")}>
                 <SectionHeader>{t("astrologers.newVerified")}</SectionHeader>
-                <div className="scroll-thin -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 md:-mx-6 md:px-6">
+                <CarouselRow label={t("astrologers.newVerified")}>
                   {newlyVerified.map((a) => (
                     <div key={a.id} className="w-[236px] shrink-0 md:w-[264px] lg:w-[288px]">
                       <AstrologerCard a={a} compact onClick={() => openProfile(a)} />
                     </div>
                   ))}
-                </div>
+                </CarouselRow>
               </section>
             ) : null}
           </>

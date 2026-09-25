@@ -65,6 +65,8 @@ const astrologers = {
   errorTitle: "Couldn't load astrologers",
   notFoundTitle: "Astrologer not found",
   notFoundBody: "This profile may have been removed.",
+  carouselBack: "Previous",
+  carouselForward: "Next",
 };
 
 export default astrologers;
