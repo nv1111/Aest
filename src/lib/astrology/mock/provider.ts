@@ -41,6 +41,7 @@ import { buildDasha, lordMeaning } from "./dasha";
 import { buildPanchang, currentChoghadiya } from "./panchang";
 import { buildCompatibility } from "./compatibility";
 import { buildHoroscope } from "./horoscope";
+import { HOUSE_THEMES_HI, LORD_MEANING_HI, planetName } from "../names";
 
 export const MOCK_PROVIDER_INFO: ProviderInfo = {
   id: "mock-engine-v1",
@@ -262,16 +263,22 @@ export class MockAstrologyProvider implements AstrologyProvider {
 
   getPanchang(
     date: string,
-    location: { name: string; latitude: number; longitude: number; timezone: string }
+    location: { name: string; latitude: number; longitude: number; timezone: string },
+    locale: "en" | "hi" = "en"
   ) {
-    return buildPanchang(date, location, this.info);
+    return buildPanchang(date, location, this.info, locale);
   }
 
-  getHoroscope(input: AstrologyInput, period: "daily" | "weekly" | "monthly" | "yearly", asOf = new Date()) {
+  getHoroscope(
+    input: AstrologyInput,
+    period: "daily" | "weekly" | "monthly" | "yearly",
+    asOf = new Date(),
+    locale: "en" | "hi" = "en"
+  ) {
     const birthUTC = localToUTC(input.dateOfBirth, input.timeOfBirth, input.timezone);
     const moonLong = siderealLongitude("Moon", birthUTC);
     const moonSignIndex = Math.floor(moonLong / 30);
-    return buildHoroscope(SIGNS[moonSignIndex], moonSignIndex, period, asOf, this.info);
+    return buildHoroscope(SIGNS[moonSignIndex], moonSignIndex, period, asOf, this.info, locale);
   }
 
   getCompatibility(
@@ -295,7 +302,7 @@ export class MockAstrologyProvider implements AstrologyProvider {
     return buildCompatibility(extract(a), extract(b), this.info);
   }
 
-  getHomeAstrology(input: AstrologyInput, asOf = new Date()): HomeAstrology {
+  getHomeAstrology(input: AstrologyInput, asOf = new Date(), locale: "en" | "hi" = "en"): HomeAstrology {
     const chart = this.getBirthChart(input);
     const dasha = this.getDasha(input, asOf);
     const panchang = this.getPanchang(asOf.toISOString().slice(0, 10), {
@@ -303,29 +310,51 @@ export class MockAstrologyProvider implements AstrologyProvider {
       latitude: input.latitude,
       longitude: input.longitude,
       timezone: input.timezone,
-    });
+    }, locale);
 
     // Day insight: seeded by (profile, date) + dasha context
     const seed = hashString(`${input.name}|${input.dateOfBirth}|${asOf.toISOString().slice(0, 10)}`);
     const rng = mulberry32(seed);
-    const insights: Omit<DayInsight, "factors">[] = [
-      {
-        headline: "A steady day — protect your focus",
-        body: `With the Moon in ${panchang.nakshatra.name} and your ${dasha.current.antardasha.lord} sub-period, traditional astrology reads today as best spent on one clear priority rather than many small ones.`,
-      },
-      {
-        headline: "Small conversations carry weight",
-        body: `The Moon's placement in ${panchang.nakshatra.name} today favours listening. People close to you are more receptive than they appear — a short, honest exchange goes far.`,
-      },
-      {
-        headline: "Momentum builds quietly",
-        body: `Your ${dasha.current.mahadasha.lord} phase favours steady building. Today's small efforts compound — trust them even if nothing dramatic happens.`,
-      },
-      {
-        headline: "Take one gentle step outward",
-        body: `${dasha.current.antardasha.lord} sub-periods tend to surface opportunities through people. Reach out to one person today — a mentor, a friend, a colleague.`,
-      },
-    ];
+    const mahaLord = planetName(dasha.current.mahadasha.lord, locale);
+    const antarLord = planetName(dasha.current.antardasha.lord, locale);
+    const insights: Omit<DayInsight, "factors">[] =
+      locale === "hi"
+        ? [
+            {
+              headline: "स्थिर दिन — अपने ध्यान की रक्षा करें",
+              body: `चंद्र ${panchang.nakshatra.name} में और आपकी ${antarLord} उप-दशा में होने से, परंपरागत ज्योतिष आज को कई छोटे कामों की बजाय एक स्पष्ट प्राथमिकता के लिए सबसे उपयुक्त मानता है।`,
+            },
+            {
+              headline: "छोटी बातचीत में गहराई है",
+              body: `आज चंद्र की ${panchang.nakshatra.name} स्थिति सुनने के लिए अनुकूल है। आपके अपने लोग जितने दिखते हैं, उससे ज़्यादा ग्रहणशील हैं — एक छोटी, सच्ची बातचीत बहुत दूर तक जाती है।`,
+            },
+            {
+              headline: "गति चुपचाप बनती है",
+              body: `आपकी ${mahaLord} दशा स्थिर निर्माण के लिए अनुकूल है। आज के छोटे प्रयास संचित होते हैं — भले कुछ नाटकीय न दिखे, इन पर भरोसा रखें।`,
+            },
+            {
+              headline: "एक कोमल कद बाहर की ओर",
+              body: `${antarLord} उप-दशा अवसरों को लोगों के ज़रिए लाती है। आज एक व्यक्ति तक पहुँचें — कोई गुरु, मित्र या सहकर्मी।`,
+            },
+          ]
+        : [
+            {
+              headline: "A steady day — protect your focus",
+              body: `With the Moon in ${panchang.nakshatra.name} and your ${dasha.current.antardasha.lord} sub-period, traditional astrology reads today as best spent on one clear priority rather than many small ones.`,
+            },
+            {
+              headline: "Small conversations carry weight",
+              body: `The Moon's placement in ${panchang.nakshatra.name} today favours listening. People close to you are more receptive than they appear — a short, honest exchange goes far.`,
+            },
+            {
+              headline: "Momentum builds quietly",
+              body: `Your ${dasha.current.mahadasha.lord} phase favours steady building. Today's small efforts compound — trust them even if nothing dramatic happens.`,
+            },
+            {
+              headline: "Take one gentle step outward",
+              body: `${dasha.current.antardasha.lord} sub-periods tend to surface opportunities through people. Reach out to one person today — a mentor, a friend, a colleague.`,
+            },
+          ];
     const chosen = insights[Math.floor(rng() * insights.length)];
 
     const nowHHMM = toLocalHHMM(asOf, input.timezone);
@@ -334,11 +363,18 @@ export class MockAstrologyProvider implements AstrologyProvider {
     return {
       insight: {
         ...chosen,
-        factors: [
-          { label: "Current phase", value: `${dasha.current.mahadasha.lord} → ${dasha.current.antardasha.lord}` },
-          { label: "Moon's nakshatra", value: panchang.nakshatra.name },
-          { label: "Tithi", value: panchang.tithi.name },
-        ],
+        factors:
+          locale === "hi"
+            ? [
+                { label: "वर्तमान दशा", value: `${mahaLord} → ${antarLord}` },
+                { label: "चंद्र नक्षत्र", value: panchang.nakshatra.name },
+                { label: "तिथि", value: panchang.tithi.name },
+              ]
+            : [
+                { label: "Current phase", value: `${dasha.current.mahadasha.lord} → ${dasha.current.antardasha.lord}` },
+                { label: "Moon's nakshatra", value: panchang.nakshatra.name },
+                { label: "Tithi", value: panchang.tithi.name },
+              ],
       },
       today: {
         tithi: panchang.tithi.name,
@@ -350,14 +386,23 @@ export class MockAstrologyProvider implements AstrologyProvider {
         sunset: panchang.sunset,
       },
       dasha: {
-        line: `${dasha.current.mahadasha.lord} phase · ${dasha.current.antardasha.lord} sub-period`,
-        sub: `Traditional astrology links this with ${lordMeaning(dasha.current.mahadasha.lord)} and ${lordMeaning(dasha.current.antardasha.lord)}.`,
+        line:
+          locale === "hi"
+            ? `${mahaLord} दशा · ${antarLord} उप-दशा`
+            : `${dasha.current.mahadasha.lord} phase · ${dasha.current.antardasha.lord} sub-period`,
+        sub:
+          locale === "hi"
+            ? `परंपरागत ज्योतिष इसे ${LORD_MEANING_HI[dasha.current.mahadasha.lord]} और ${LORD_MEANING_HI[dasha.current.antardasha.lord]} से जोड़ता है।`
+            : `Traditional astrology links this with ${lordMeaning(dasha.current.mahadasha.lord)} and ${lordMeaning(dasha.current.antardasha.lord)}.`,
       },
       transit: {
         line: chart
           ? (() => {
               const jup = this.getTransit(input, asOf).transits.find((t) => t.planet === "Jupiter");
-              return jup ? `Jupiter transits your ${jup.natalHouse}th house — ${HOUSE_THEMES[jup.natalHouse].toLowerCase()}.` : "";
+              if (!jup) return "";
+              return locale === "hi"
+                ? `गुरु आपके ${jup.natalHouse}वें भाव से गुज़र रहे हैं — ${HOUSE_THEMES_HI[jup.natalHouse]}।`
+                : `Jupiter transits your ${jup.natalHouse}th house — ${HOUSE_THEMES[jup.natalHouse].toLowerCase()}.`;
             })()
           : "",
       },

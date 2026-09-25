@@ -8,6 +8,7 @@ import { astrologyService } from "@/services/astrology";
 import { http, errorMessage } from "@/lib/http";
 import { useAppStore } from "@/store/app";
 import { t } from "@/i18n";
+import { useLocaleStore } from "@/store/locale";
 import { formatINR } from "@/lib/money";
 import type { HomeAstrology } from "@/lib/astrology/types";
 import type { AstrologerDTO, ConsultationDTO, ReportDTO } from "@/types/models";
@@ -20,11 +21,11 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { contentWidthClass } from "@/components/shared/content-width";
 import { cn } from "@/lib/utils";
 
-const SUGGESTED_PROMPTS = [
-  "What should I know about my career right now?",
-  "What does my current phase mean?",
-  "What is happening in my relationships?",
-  "What should I focus on this month?",
+const SUGGESTED_PROMPT_KEYS = [
+  "home.promptCareer",
+  "home.promptPhase",
+  "home.promptRelationships",
+  "home.promptMonth",
 ];
 
 /** Home — personalised, calm, never overloaded. */
@@ -32,13 +33,14 @@ export function HomeScreen() {
   const me = useMe();
   const push = useAppStore((s) => s.push);
   const openInTab = useAppStore((s) => s.openInTab);
+  const locale = useLocaleStore((s) => s.locale);
 
   const profileId = me.data?.primaryProfile?.id;
   const hasProfile = !!profileId;
 
   const home = useQuery<HomeAstrology>({
-    queryKey: ["home-astrology", profileId],
-    queryFn: () => astrologyService.home(profileId!),
+    queryKey: ["home-astrology", profileId, locale],
+    queryFn: () => astrologyService.home(profileId!, locale),
     enabled: !!profileId,
     staleTime: 10 * 60_000,
   });
@@ -136,7 +138,9 @@ export function HomeScreen() {
           </button>
           <div className="relative -mx-4 mt-3 md:mx-0">
             <div className="scroll-thin flex gap-2 overflow-x-auto px-4 pb-1 md:flex-wrap md:overflow-visible md:px-0">
-              {SUGGESTED_PROMPTS.map((p) => (
+              {SUGGESTED_PROMPT_KEYS.map((k) => {
+                const p = t(k);
+                return (
                 <button
                   key={p}
                   type="button"
@@ -145,7 +149,8 @@ export function HomeScreen() {
                 >
                   {p}
                 </button>
-              ))}
+                );
+              })}
             </div>
             {/* fade hint — there is more to the right */}
             <div
@@ -193,7 +198,7 @@ export function HomeScreen() {
                 </p>
               )}
               <div className="grid grid-cols-2 gap-x-4">
-                <TodayItem icon={Sun} label="Tithi" value={home.data.today.tithi} />
+                <TodayItem icon={Sun} label={t("home.tithi")} value={home.data.today.tithi} />
                 <TodayItem
                   icon={MoonStar}
                   label={t("home.nakshatra")}
@@ -203,22 +208,24 @@ export function HomeScreen() {
                   icon={Hourglass}
                   label={t("home.rahuKaal")}
                   value={`${home.data.today.rahuKaal.start}–${home.data.today.rahuKaal.end}`}
-                  note="Avoid starting important work"
+                  note={t("home.rahuNote")}
                 />
                 <TodayItem
                   icon={Clock3}
                   label={t("home.choghadiya")}
                   value={
                     home.data.today.choghadiyaNow
-                      ? `${home.data.today.choghadiyaNow.name} · until ${home.data.today.choghadiyaNow.ends}`
+                      ? `${home.data.today.choghadiyaNow.name} · ${t("home.untilTime", { time: home.data.today.choghadiyaNow.ends })}`
                       : "—"
                   }
                   note={
                     home.data.today.choghadiyaNow?.quality === "good"
-                      ? "Good period"
+                      ? t("home.goodPeriodNote")
                       : home.data.today.choghadiyaNow?.quality === "avoid"
-                        ? "Take-it-easy period"
-                        : undefined
+                        ? t("home.avoidPeriodNote")
+                        : home.data.today.choghadiyaNow
+                          ? t("home.neutralPeriodNote")
+                          : undefined
                   }
                 />
               </div>

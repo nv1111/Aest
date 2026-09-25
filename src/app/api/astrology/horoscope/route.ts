@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   if (!resolved) return fail(404, "no_profile", "Add your birth details first.");
 
   const { profile, input } = resolved;
+  const locale = req.nextUrl.searchParams.get("locale") === "hi" ? "hi" : "en";
   const now = new Date();
   const dateKey =
     parsed.data === "daily"
@@ -30,9 +31,9 @@ export async function GET(req: NextRequest) {
           : String(now.getUTCFullYear());
 
   const horoscope = await cached(
-    `horoscope:${profile.id}:${profile.updatedAt.toISOString()}:${parsed.data}:${dateKey}`,
+    `horoscope:${profile.id}:${profile.updatedAt.toISOString()}:${parsed.data}:${dateKey}:${locale}`,
     6 * 3600000,
-    () => provider().getHoroscope(input, parsed.data)
+    () => provider().getHoroscope(input, parsed.data, new Date(), locale)
   );
   return ok(horoscope);
 }

@@ -30,6 +30,16 @@ const home = {
   sunrise: "Sunrise",
   sunset: "Sunset",
   unreadNotifications: "Notifications",
+  rahuNote: "Avoid starting important work",
+  tithi: "Tithi",
+  promptCareer: "What should I know about my career right now?",
+  promptPhase: "What does my current phase mean?",
+  promptRelationships: "What is happening in my relationships?",
+  promptMonth: "What should I focus on this month?",
+  goodPeriodNote: "Good period",
+  neutralPeriodNote: "Take-it-easy period",
+  avoidPeriodNote: "Take-it-easy period",
+  untilTime: "until {time}",
 };
 
 export default home;

@@ -293,7 +293,8 @@ export type ChoghadiyaName =
   | "Rog";
 
 export interface ChoghadiyaSlot extends TimeRange {
-  name: ChoghadiyaName;
+  /** localized display name (English enum value, or its Devanagari form) */
+  name: string;
   quality: "good" | "neutral" | "avoid";
 }
 
@@ -306,7 +307,7 @@ export interface PanchangData {
   moonrise: string | null;
   moonset: string | null;
   tithi: { name: string; phase: string; endDate: string };
-  nakshatra: { name: NakshatraName; pada: number; endDate: string };
+  nakshatra: { name: string; pada: number; endDate: string };
   yoga: { name: string };
   karana: { name: string };
   vara: { name: string; lord: PlanetName };
@@ -376,7 +377,7 @@ export interface HomeAstrology {
     nakshatra: string;
     nakshatraPada: number;
     rahuKaal: TimeRange;
-    choghadiyaNow: { name: ChoghadiyaName; quality: "good" | "neutral" | "avoid"; ends: string } | null;
+    choghadiyaNow: { name: string; quality: "good" | "neutral" | "avoid"; ends: string } | null;
     sunrise: string;
     sunset: string;
   };
@@ -391,11 +392,15 @@ export interface AstrologyProvider {
   getBirthChart(input: AstrologyInput): BirthChart;
   getDasha(input: AstrologyInput, asOf?: Date): DashaInfo;
   getTransit(input: AstrologyInput, asOf?: Date): TransitInfo;
-  getPanchang(date: string, location: { name: string; latitude: number; longitude: number; timezone: string }): PanchangData;
-  getHoroscope(input: AstrologyInput, period: HoroscopePeriod, asOf?: Date): HoroscopeReading;
+  getPanchang(
+    date: string,
+    location: { name: string; latitude: number; longitude: number; timezone: string },
+    locale?: "en" | "hi"
+  ): PanchangData;
+  getHoroscope(input: AstrologyInput, period: HoroscopePeriod, asOf?: Date, locale?: "en" | "hi"): HoroscopeReading;
   getCompatibility(
     a: { id: string; input: AstrologyInput },
     b: { id: string; input: AstrologyInput }
   ): CompatibilityResult;
-  getHomeAstrology(input: AstrologyInput, asOf?: Date): HomeAstrology;
+  getHomeAstrology(input: AstrologyInput, asOf?: Date, locale?: "en" | "hi"): HomeAstrology;
 }

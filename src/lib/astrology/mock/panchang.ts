@@ -13,6 +13,15 @@ import {
   type TimeRange,
 } from "../types";
 import {
+  CHOGHADIYA_HI,
+  KARANA_HI,
+  NAKSHATRA_HI,
+  VARA_HI,
+  YOGA_HI,
+  planetName,
+  tithiName as localizedTithi,
+} from "../names";
+import {
   addMinutes,
   hhmmToMinutes,
   localToUTC,
@@ -70,8 +79,22 @@ const CHOGHADIYA_MEANING: Record<ChoghadiyaName, string> = {
   Rog: "Avoid — traditionally inauspicious",
 };
 
+const CHOGHADIYA_MEANING_HI: Record<ChoghadiyaName, string> = {
+  Amrit: "सबसे अच्छा समय — काम आसानी से बनते हैं",
+  Shubh: "शुभ कार्यों के लिए अच्छा समय",
+  Labh: "लाभ और व्यापार के लिए अच्छा समय",
+  Chal: "साधारण समय — रोज़मर्रा के काम",
+  Udveg: "महत्वपूर्ण काम शुरू न करें",
+  Kaag: "टालें — परंपरा के अनुसार अशुभ",
+  Rog: "टालें — परंपरा के अनुसार अशुभ",
+};
+
 export function choghadiyaMeaning(name: ChoghadiyaName): string {
   return CHOGHADIYA_MEANING[name];
+}
+
+export function choghadiyaMeaningHi(name: ChoghadiyaName): string {
+  return CHOGHADIYA_MEANING_HI[name];
 }
 
 function part(range: TimeRange, index1: number): TimeRange {
@@ -87,7 +110,8 @@ function part(range: TimeRange, index1: number): TimeRange {
 export function buildPanchang(
   dateStr: string,
   location: { name: string; latitude: number; longitude: number; timezone: string },
-  provider: PanchangData["provider"]
+  provider: PanchangData["provider"],
+  locale: "en" | "hi" = "en"
 ): PanchangData {
   const { latitude, longitude, timezone } = location;
   const events = solarEvents(dateStr, latitude, longitude, timezone);
@@ -172,13 +196,24 @@ export function buildPanchang(
   const moonset = `${String(Math.floor(moonsetMin / 60)).padStart(2, "0")}:${String(moonsetMin % 60).padStart(2, "0")}`;
 
   const fmtDate = (ms: number) =>
-    new Intl.DateTimeFormat("en-IN", {
+    new Intl.DateTimeFormat(locale === "hi" ? "hi-IN" : "en-IN", {
       timeZone: timezone,
       day: "numeric",
       month: "short",
     }).format(new Date(ms));
 
-  const simpleSummary = `Today is ${tithiName} tithi with the Moon in ${NAKSHATRAS[nakIndex]}. Avoid starting important work during Rahu Kaal (${rahuKaal.start}–${rahuKaal.end}). ${abbrWeekday(weekdayIndex)} is ruled by ${VARA_LORDS[weekdayIndex]}.`;
+  // localized display names (English enums stay the compute keys)
+  const tithiDisplay = localizedTithi(tithiName, locale);
+  const nakshatraDisplay = locale === "hi" ? NAKSHATRA_HI[nakIndex] : NAKSHATRAS[nakIndex];
+  const yogaDisplay = locale === "hi" ? YOGA_HI[YOGA_NAMES[yogaIndex]] : YOGA_NAMES[yogaIndex];
+  const karanaDisplay = locale === "hi" ? KARANA_HI[karanaName] : karanaName;
+  const varaDisplay = locale === "hi" ? VARA_HI[VARA_NAMES[weekdayIndex]] : VARA_NAMES[weekdayIndex];
+  const chogDisplay = (n: ChoghadiyaName) => (locale === "hi" ? CHOGHADIYA_HI[n] : n);
+
+  const simpleSummary =
+    locale === "hi"
+      ? `आज ${tithiDisplay} तिथि है और चंद्र ${nakshatraDisplay} नक्षत्र में है। राहु काल (${rahuKaal.start}–${rahuKaal.end}) में महत्वपूर्ण काम शुरू न करें। ${varaDisplay} के स्वामी ${planetName(VARA_LORDS[weekdayIndex], "hi")} हैं।`
+      : `Today is ${tithiName} tithi with the Moon in ${NAKSHATRAS[nakIndex]}. Avoid starting important work during Rahu Kaal (${rahuKaal.start}–${rahuKaal.end}). ${abbrWeekday(weekdayIndex)} is ruled by ${VARA_LORDS[weekdayIndex]}.`;
 
   return {
     provider,
@@ -189,19 +224,22 @@ export function buildPanchang(
     moonrise,
     moonset,
     tithi: {
-      name: tithiName,
-      phase: isShukla ? "Waxing (Shukla Paksha)" : "Waning (Krishna Paksha)",
+      name: tithiDisplay,
+      phase: locale === "hi" ? (isShukla ? "बढ़ता (शुक्ल पक्ष)" : "घटता (कृष्ण पक्ष)") : isShukla ? "Waxing (Shukla Paksha)" : "Waning (Krishna Paksha)",
       endDate: fmtDate(tithiEndMs),
     },
-    nakshatra: { name: NAKSHATRAS[nakIndex], pada, endDate: fmtDate(nakEndMs) },
-    yoga: { name: YOGA_NAMES[yogaIndex] },
-    karana: { name: karanaName },
-    vara: { name: VARA_NAMES[weekdayIndex], lord: VARA_LORDS[weekdayIndex] },
+    nakshatra: { name: nakshatraDisplay, pada, endDate: fmtDate(nakEndMs) },
+    yoga: { name: yogaDisplay },
+    karana: { name: karanaDisplay },
+    vara: { name: varaDisplay, lord: VARA_LORDS[weekdayIndex] },
     rahuKaal,
     yamaganda,
     gulika,
     abhijitMuhurat: abhijit,
-    choghadiya: { day: choghadiyaDay, night: choghadiyaNight },
+    choghadiya: {
+      day: choghadiyaDay.map((s) => ({ ...s, name: chogDisplay(s.name as ChoghadiyaName) })),
+      night: choghadiyaNight.map((s) => ({ ...s, name: chogDisplay(s.name as ChoghadiyaName) })),
+    },
     simpleSummary,
   };
 }
@@ -214,7 +252,7 @@ function abbrWeekday(i: number): string {
 export function currentChoghadiya(
   p: PanchangData,
   nowLocalHHMM: string
-): { name: ChoghadiyaName; quality: "good" | "neutral" | "avoid"; ends: string } | null {
+): { name: string; quality: "good" | "neutral" | "avoid"; ends: string } | null {
   const now = hhmmToMinutes(nowLocalHHMM);
   for (const slot of [...p.choghadiya.day, ...p.choghadiya.night]) {
     const s = hhmmToMinutes(slot.start);

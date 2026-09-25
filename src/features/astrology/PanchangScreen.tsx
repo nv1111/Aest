@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { astrologyService } from "@/services/astrology";
 import { useActiveProfileId } from "./useActiveProfile";
+import { useLocaleStore } from "@/store/locale";
+import { planetName } from "@/lib/astrology/names";
 import { dateToISO, formatHHMM, isNowInSlot, localDateISO, nowInTimezone } from "./utils";
 import { t } from "@/i18n";
 import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
@@ -44,6 +46,7 @@ export default function PanchangScreen() {
   const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [learnTerm, setLearnTerm] = useState<string | null>(null);
+  const locale = useLocaleStore((s) => s.locale);
 
   const dateStr = useMemo(() => {
     if (mode === "today") return localDateISO();
@@ -56,8 +59,8 @@ export default function PanchangScreen() {
   }, [mode, customDate]);
 
   const panchang = useQuery<PanchangData>({
-    queryKey: ["panchang", dateStr, profileId ?? "default"],
-    queryFn: () => astrologyService.panchang(dateStr, profileId),
+    queryKey: ["panchang", dateStr, profileId ?? "default", locale],
+    queryFn: () => astrologyService.panchang(dateStr, profileId, locale),
     enabled: ready,
     staleTime: 30 * 60_000,
     retry: 1,
@@ -76,7 +79,7 @@ export default function PanchangScreen() {
 
   const dateLabel =
     mode === "custom" && customDate
-      ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric" }).format(customDate)
+      ? new Intl.DateTimeFormat(locale === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "long", year: "numeric" }).format(customDate)
       : mode === "tomorrow"
         ? t("astrology.tomorrow")
         : t("astrology.today");
@@ -111,7 +114,7 @@ export default function PanchangScreen() {
               <PopoverTrigger asChild>
                 <DateButton active={mode === "custom"} onClick={() => setCalendarOpen(true)}>
                   {mode === "custom" && customDate
-                    ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(customDate)
+                    ? new Intl.DateTimeFormat(locale === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "short" }).format(customDate)
                     : t("astrology.pickDate")}
                 </DateButton>
               </PopoverTrigger>
@@ -204,7 +207,7 @@ export default function PanchangScreen() {
                 term="vara"
                 label={t("astrology.vara")}
                 value={data.vara.name}
-                sub={`${t("astrology.lord")} · ${data.vara.lord}`}
+                sub={`${t("astrology.lord")} · ${planetName(data.vara.lord, locale)}`}
                 onLearn={() => setLearnTerm("vara")}
               />
             </div>
@@ -484,6 +487,7 @@ function LearnDialog({
   data: PanchangData | undefined;
   onClose: () => void;
 }) {
+  const locale = useLocaleStore((s) => s.locale);
   if (!term) return null;
   const termKey = { tithi: "tithi", nakshatra: "nakshatra", yoga: "yoga", karana: "karana", vara: "vara", rahuKaal: "rahuKaal", abhijit: "abhijit", choghadiya: "choghadiya" }[term];
   if (!termKey) return null;
@@ -501,7 +505,7 @@ function LearnDialog({
               `${data.nakshatra.name} · ${t("astrology.pada")} ${data.nakshatra.pada}`,
               data.yoga.name,
               data.karana.name,
-              `${data.vara.name} · ${t("astrology.lord")} ${data.vara.lord}`,
+              `${data.vara.name} · ${t("astrology.lord")} ${planetName(data.vara.lord, locale)}`,
             ][["tithi", "nakshatra", "yoga", "karana", "vara"].indexOf(termKey)] ?? ""
           : "";
 

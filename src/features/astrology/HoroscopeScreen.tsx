@@ -8,6 +8,8 @@ import { astrologyService } from "@/services/astrology";
 import { useActiveProfileId } from "./useActiveProfile";
 import { useAppStore } from "@/store/app";
 import { t } from "@/i18n";
+import { useLocaleStore } from "@/store/locale";
+import { signName } from "@/lib/astrology/names";
 import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -32,10 +34,11 @@ export default function HoroscopeScreen() {
   const { profileId, ready } = useActiveProfileId();
   const push = useAppStore((s) => s.push);
   const [period, setPeriod] = useState<HoroscopePeriod>("daily");
+  const locale = useLocaleStore((s) => s.locale);
 
   const horoscope = useQuery<HoroscopeReading>({
-    queryKey: ["horoscope", profileId, period],
-    queryFn: () => astrologyService.horoscope(profileId!, period),
+    queryKey: ["horoscope", profileId, period, locale],
+    queryFn: () => astrologyService.horoscope(profileId!, period, locale),
     enabled: !!profileId,
     staleTime: 15 * 60_000,
     retry: 1,
@@ -93,7 +96,7 @@ export default function HoroscopeScreen() {
             <span className="font-semibold">
               {t("astrology.basisNote")}: {data.basis}
             </span>{" "}
-            · {t("astrology.moonSignLabel")}: {data.moonSign}
+            · {t("astrology.moonSignLabel")}: {signName(data.moonSign, locale)}
           </TrustNote>
 
           {/* ------------------------------------------------ headline + summary */}

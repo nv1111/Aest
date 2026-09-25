@@ -30,6 +30,16 @@ const home = {
   sunrise: "सूर्योदय",
   sunset: "सूर्यास्त",
   unreadNotifications: "सूचनाएँ",
+  rahuNote: "महत्वपूर्ण काम शुरू न करें",
+  tithi: "तिथि",
+  promptCareer: "इस समय मेरे करियर के बारे में क्या जानना चाहिए?",
+  promptPhase: "मेरी मौजूदा दशा का क्या अर्थ है?",
+  promptRelationships: "मेरे रिश्तों में अभी क्या चल रहा है?",
+  promptMonth: "इस महीने मुझे किस पर ध्यान देना चाहिए?",
+  goodPeriodNote: "अच्छा समय",
+  neutralPeriodNote: "सामान्य समय",
+  avoidPeriodNote: "सामान्य समय",
+  untilTime: "{time} तक",
 };
 
 export default home;

@@ -332,3 +332,25 @@ Stage Summary:
 - Fixed pre-existing payment settlement bug (wrong ref to provider.getStatus).
 - All verifications green; no known regressions.
 - Next candidates: onboarding language step (Hindi discoverable at first run), reports share-as-image, Panchang date navigation, deeper Hindi for demo engine strings (insight.factors currently English from API), email auth.
+
+---
+Task ID: 7-engine-hi
+Agent: main (Z.ai Code)
+Task: Locale-aware astrology engine — Hindi data for Home/Panchang/Horoscope (deep localization), plus residual UI string fixes
+
+Work Log:
+- Created src/lib/astrology/names.ts — Hindi name tables: PLANET_HI (9), SIGN_HI (12), NAKSHATRA_HI (27), TITHI_HI (14+2+2), YOGA_HI (27), KARANA_HI (11), VARA_HI (7), CHOGHADIYA_HI (7), LORD_MEANING_HI (9), HOUSE_THEMES_HI (12) + helper fns (planetName/signName/tithiName/choghadiyaName).
+- types.ts: widened display-only DTO fields to string (ChoghadiyaSlot.name, PanchangData.nakshatra.name, HomeAstrology.choghadiyaNow.name); provider interface getPanchang/getHoroscope/getHomeAstrology now take optional locale ("en"|"hi"). Compute stays on English enums; localization happens at DTO assembly.
+- mock/panchang.ts: buildPanchang(locale) — Hindi tithi/nakshatra/yoga/karana/vara/choghadiya names, tithi.phase, simpleSummary, fmtDate via hi-IN; currentChoghadiya return name: string.
+- mock/horoscope.ts: HEADLINES_HI/SUMMARIES_HI/SECTIONS_HI/ENERGY_HI (all 4 periods, 4 sections × 4 bodies); buildHoroscope(locale) — Hindi basis (with localized moon sign), dateLabel via hi-IN, energyLabel(locale).
+- mock/provider.ts: getPanchang/getHoroscope thread locale; getHomeAstrology(locale) — 4 Hindi day-insight templates (lords via planetName), Hindi factor labels (वर्तमान दशा/चंद्र नक्षत्र/तिथि), Hindi dasha line + sub (LORD_MEANING_HI), Hindi transit line (गुरु …वें भाव + HOUSE_THEMES_HI).
+- API routes home/panchang/horoscope: ?locale= param (default en) + locale in cache key.
+- services/astrology.ts: panchang/horoscope/home accept locale (appended to URL only when ≠en).
+- Screens: HomeScreen/PanchangScreen/HoroscopeScreen read useLocaleStore, locale in queryKeys (clean re-fetch on switch); HoroscopeScreen moonSign via signName(locale); PanchangScreen vara.lord via planetName(locale) (2 spots incl. LearnDialog), custom-date Intl hi-IN.
+- Residual hardcoded strings fixed: HomeScreen "Tithi" label, Rahu/choghadiya notes, "until {time}" → new home.* keys (en+hi); Home suggested prompt chips → home.prompt* keys (en+hi), t() at render time (locale-reactive).
+- QA @ http://localhost:81/ via agent-browser (Hindi + English): Home DayCard full Hindi (गति चुपचाप बनती है, राहु → शुक्र, पूर्व भाद्रपद, शुक्ल चतुर्दशी, सूर्योदय 06:23); Panchang full Hindi incl. simpleSummary + स्वामी · शुक्र + Hindi dates (25 सित॰); Horoscope full Hindi (basis मकर, 25 सितंबर 2026, sections करियर और कार्य/रिश्ते/स्वास्थ्य/धन); VLM verified Devanagari clean; English regression verified (Momentum builds quietly / Shukla Chaturdashi); mobile 390 Hindi home screenshot OK; console 0 errors; dev.log all 200s; tsc + lint clean. Screenshots: download/qa-round-engine-hi/.
+
+Stage Summary:
+- ENGINE LOCALIZATION COMPLETE for the 3 highest-traffic surfaces (Home, Panchang, Horoscope): the app now speaks Hindi end-to-end — UI chrome (round 6) + data (this round). Locale flows: store → service → ?locale= → provider → Hindi DTOs; caches keyed per locale; queryKeys include locale.
+- Compute integrity: all astronomy/determinism untouched (English enums remain the compute keys; Hindi only at display assembly). English output byte-identical (default locale, en URLs unchanged).
+- NOT yet localized (English stays): Kundli/Chart/Planets/Dasha/Transit/Compatibility screens (engine data), onboarding, reports content, notifications DB content — next candidates. Suggested next: (1) extend locale to dasha+transit+planets (names tables already exist — small), (2) onboarding language step, (3) reports share-as-image.

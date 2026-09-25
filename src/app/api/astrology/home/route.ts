@@ -12,11 +12,12 @@ export async function GET(req: NextRequest) {
   if (!resolved) return fail(404, "no_profile", "Add your birth details first.");
 
   const { profile, input } = resolved;
+  const locale = req.nextUrl.searchParams.get("locale") === "hi" ? "hi" : "en";
   const hourKey = new Date().toISOString().slice(0, 13);
   const home = await cached(
-    `home:${profile.id}:${profile.updatedAt.toISOString()}:${hourKey}`,
+    `home:${profile.id}:${profile.updatedAt.toISOString()}:${hourKey}:${locale}`,
     3600000,
-    () => provider().getHomeAstrology(input)
+    () => provider().getHomeAstrology(input, new Date(), locale)
   );
   return ok(home);
 }
