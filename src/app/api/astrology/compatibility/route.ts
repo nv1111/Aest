@@ -8,6 +8,7 @@ import { cached } from "@/lib/cache";
 const schema = z.object({
   profileAId: z.string().uuid().optional(),
   profileBId: z.string().uuid().optional(),
+  locale: z.enum(["en", "hi"]).optional(),
   /** inline creation of profile B (compatibility flow) */
   profileB: z
     .object({
@@ -68,13 +69,15 @@ export async function POST(req: NextRequest) {
   }
   if (!profileB) return fail(422, "profile_b_required", "Choose or add the second person's birth details.");
 
+  const locale = body.locale === "hi" ? "hi" : "en";
   const result = await cached(
-    `compat:${profileA.id}:${profileA.updatedAt.toISOString()}:${profileB.id}:${profileB.updatedAt.toISOString()}`,
+    `compat:${profileA.id}:${profileA.updatedAt.toISOString()}:${profileB.id}:${profileB.updatedAt.toISOString()}:${locale}`,
     24 * 3600000,
     () =>
       provider().getCompatibility(
         { id: profileA.id, input: toAstrologyInput(profileA) },
-        { id: profileB.id, input: toAstrologyInput(profileB) }
+        { id: profileB.id, input: toAstrologyInput(profileB) },
+        locale
       )
   );
   return ok(result);

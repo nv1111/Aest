@@ -9,6 +9,8 @@ import { PLANET_ABBR, PLANET_GLYPH_CLASS, PLANET_ORDER, planetMeaning } from "./
 import { useActiveProfileId } from "./useActiveProfile";
 import { useAppStore } from "@/store/app";
 import { t } from "@/i18n";
+import { useLocaleStore } from "@/store/locale";
+import { nakshatraName, planetName, signName } from "@/lib/astrology/names";
 import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ErrorState } from "@/components/shared/ErrorState";
@@ -23,10 +25,11 @@ export default function PlanetsScreen() {
   const { profileId, ready } = useActiveProfileId();
   const push = useAppStore((s) => s.push);
   const [open, setOpen] = useState<string | null>(null);
+  const locale = useLocaleStore((s) => s.locale);
 
   const chart = useQuery<BirthChart>({
-    queryKey: ["chart", profileId],
-    queryFn: () => astrologyService.chart(profileId!),
+    queryKey: ["chart", profileId, locale],
+    queryFn: () => astrologyService.chart(profileId!, locale),
     enabled: !!profileId,
     staleTime: 10 * 60_000,
     retry: 1,
@@ -77,7 +80,7 @@ export default function PlanetsScreen() {
                 <button
                   type="button"
                   aria-expanded={expanded}
-                  aria-label={`${p.planet} — ${t("astrology.degreeFormat", { sign: p.sign, deg: p.degreeInSign.toFixed(1) })}`}
+                  aria-label={`${planetName(p.planet, locale)} — ${t("astrology.degreeFormat", { sign: signName(p.sign, locale), deg: p.degreeInSign.toFixed(1) })}`}
                   onClick={() => setOpen(expanded ? null : p.planet)}
                   className="press flex min-h-[44px] w-full items-center gap-3 p-4 text-left"
                 >
@@ -91,7 +94,7 @@ export default function PlanetsScreen() {
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
-                      <span className="text-[15px] font-semibold text-foreground">{p.planet}</span>
+                      <span className="text-[15px] font-semibold text-foreground">{planetName(p.planet, locale)}</span>
                       {p.isRetrograde ? (
                         <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-bold text-warning-foreground">
                           {t("astrology.retrogradeLong")}
@@ -102,9 +105,9 @@ export default function PlanetsScreen() {
                       </span>
                     </span>
                     <span className="mt-0.5 block truncate text-[12.5px] text-muted-foreground">
-                      {t("astrology.degreeFormat", { sign: p.sign, deg: p.degreeInSign.toFixed(1) })}
+                      {t("astrology.degreeFormat", { sign: signName(p.sign, locale), deg: p.degreeInSign.toFixed(1) })}
                       {" · "}
-                      {p.nakshatra} · {t("astrology.pada")} {p.nakshatraPada}
+                      {nakshatraName(p.nakshatra, locale)} · {t("astrology.pada")} {p.nakshatraPada}
                     </span>
                   </span>
                   <ChevronDown
@@ -135,11 +138,11 @@ export default function PlanetsScreen() {
                         <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">{meaning.body}</p>
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-secondary-foreground">
-                            {t("astrology.signLordShort")}: <span className="text-foreground">{p.signLord}</span>
+                            {t("astrology.signLordShort")}: <span className="text-foreground">{planetName(p.signLord, locale)}</span>
                           </span>
                           <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium text-secondary-foreground">
                             {t("astrology.nakshatraLordShort")}:{" "}
-                            <span className="text-foreground">{p.nakshatraLord}</span>
+                            <span className="text-foreground">{planetName(p.nakshatraLord, locale)}</span>
                           </span>
                         </div>
                         {p.isRetrograde ? (

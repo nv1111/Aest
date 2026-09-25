@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { FileDown, Loader2, Printer, Share2, FileText } from "lucide-react";
+import { FileDown, Loader2, Printer, Share, Share2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { reportService, type ReportType } from "@/services/reports";
 import { useAppStore, useCurrentScreen } from "@/store/app";
@@ -17,6 +17,7 @@ import { PageSkeleton } from "@/components/shared/PageSkeleton";
 import { TrustNote } from "@/components/shared/TrustNote";
 import { Button } from "@/components/ui/button";
 import { downloadReportHtml, printReportHtml } from "./report-html";
+import { useShareReportImage } from "./ShareCard";
 
 /** Report details — polls while generating, then renders readable sections. */
 export function ReportDetailsScreen() {
@@ -37,6 +38,7 @@ export function ReportDetailsScreen() {
 
   const report = query.data?.report;
   const notFound = query.isError && query.error instanceof ApiError && query.error.status === 404;
+  const shareImage = useShareReportImage();
 
   const regenerate = useMutation({
     mutationFn: (input: { type: ReportType; profileId?: string | null }) =>
@@ -183,7 +185,7 @@ export function ReportDetailsScreen() {
         </motion.header>
 
         {/* action bar */}
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
           <Button
             onClick={handleDownload}
             className="press h-11 rounded-2xl text-[12.5px] font-semibold"
@@ -207,21 +209,36 @@ export function ReportDetailsScreen() {
             className="press h-11 rounded-2xl text-[12.5px] font-semibold"
             aria-label={t("reports.share")}
           >
-            <Share2 className="mr-1.5 h-4 w-4" strokeWidth={1.75} />
+            <Share className="mr-1.5 h-4 w-4" strokeWidth={1.75} />
             {t("reports.share")}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => void shareImage.share(report)}
+            disabled={shareImage.pendingId !== null}
+            aria-busy={shareImage.pendingId === report.id}
+            className="press h-11 rounded-2xl text-[12.5px] font-semibold"
+            aria-label={t("reports.shareImage")}
+          >
+            {shareImage.pendingId === report.id ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" strokeWidth={1.75} />
+            ) : (
+              <Share2 className="mr-1.5 h-4 w-4" strokeWidth={1.75} />
+            )}
+            {shareImage.pendingId === report.id ? t("reports.sharePreparing") : t("reports.shareImage")}
           </Button>
         </div>
         <p className="mt-2 px-1 text-[11.5px] text-muted-foreground">{t("reports.printNote")}</p>
 
         {/* sections */}
-        <div className="mt-6 max-w-[65ch]">
+        <div className="mt-6 space-y-2.5">
           {sections.map((s, i) => (
             <motion.section
               key={`${i}-${s.heading}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: Math.min(i * 0.06, 0.3), duration: 0.3 }}
-              className="border-t border-hairline/70 py-5 first:border-t-0 first:pt-2"
+              transition={{ delay: Math.min(i * 0.05, 0.3), duration: 0.3 }}
+              className="rounded-2xl border border-border bg-card px-4 py-4 shadow-[0_1px_2px_rgba(46,36,30,0.03)] md:px-5 md:py-5"
               aria-label={s.heading}
             >
               <h2 className="font-display text-[17px] font-semibold leading-snug text-foreground">{s.heading}</h2>

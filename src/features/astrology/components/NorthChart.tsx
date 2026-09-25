@@ -2,6 +2,7 @@
 
 import { SIGNS, type PlanetName, type SignName } from "@/lib/astrology/types";
 import { PLANET_ABBR } from "../constants";
+import { signName } from "@/lib/astrology/names";
 import { t } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -63,11 +64,14 @@ export function NorthChart({
   houses,
   retroPlanets,
   activeHouse,
+  locale = "en",
   onSelectHouse,
 }: {
   houses: ChartHouse[];
   retroPlanets: Set<PlanetName>;
   activeHouse: number | null;
+  /** display locale — sign names inside the aria-label (grid shows sign numbers) */
+  locale?: "en" | "hi";
   onSelectHouse: (house: number) => void;
 }) {
   const byHouse = new Map(houses.map((h) => [h.house, h]));
@@ -86,7 +90,8 @@ export function NorthChart({
         const sign = house?.sign;
         const planets = house?.planets ?? [];
         const signNumber = sign ? SIGNS.indexOf(sign) + 1 : null;
-        const label = t("astrology.houseTitle", { n }) + (sign ? ` — ${sign}` : "");
+        const label =
+          t("astrology.houseTitle", { n }) + (sign ? ` — ${signName(sign, locale)}` : "");
         return (
           <polygon
             key={n}

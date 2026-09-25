@@ -6,8 +6,11 @@ import { motion } from "framer-motion";
 import { ArrowRight, Moon, MoonStar, Sparkles, Sun, Sunrise, Clock3 } from "lucide-react";
 import { astrologyService } from "@/services/astrology";
 import { useActiveProfileId } from "./useActiveProfile";
+import { PLANET_ABBR, PLANET_GLYPH_CLASS } from "./constants";
 import { useAppStore } from "@/store/app";
 import { t } from "@/i18n";
+import { useLocaleStore } from "@/store/locale";
+import { nakshatraName, planetName, signName } from "@/lib/astrology/names";
 import { trackEvent } from "@/lib/analytics";
 import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -24,10 +27,11 @@ import type { BirthChart } from "@/lib/astrology/types";
 export default function KundliScreen() {
   const { profileId, ready } = useActiveProfileId();
   const push = useAppStore((s) => s.push);
+  const locale = useLocaleStore((s) => s.locale);
 
   const chart = useQuery<BirthChart>({
-    queryKey: ["chart", profileId],
-    queryFn: () => astrologyService.chart(profileId!),
+    queryKey: ["chart", profileId, locale],
+    queryFn: () => astrologyService.chart(profileId!, locale),
     enabled: !!profileId,
     staleTime: 10 * 60_000,
     retry: 1,
@@ -86,28 +90,36 @@ export default function KundliScreen() {
                 <Placement
                   icon={Sunrise}
                   label={t("astrology.lagna")}
-                  value={chart.data.ascendant.sign}
-                  sub={`${t("astrology.lord")} · ${chart.data.ascendant.lord}${
+                  value={signName(chart.data.ascendant.sign, locale)}
+                  sub={`${t("astrology.lord")} · ${planetName(chart.data.ascendant.lord, locale)}${
                     chart.data.ascendant.isApproximate ? ` · ${t("astrology.lagnaApprox")}` : ""
                   }`}
                 />
                 <Placement
                   icon={Moon}
                   label={t("astrology.rashi")}
-                  value={chart.data.moonSign.sign}
-                  sub={chart.data.moonSign.sanskrit}
+                  value={signName(chart.data.moonSign.sign, locale)}
+                  sub={
+                    locale === "hi"
+                      ? signName(chart.data.moonSign.sign, locale)
+                      : chart.data.moonSign.sanskrit
+                  }
                 />
                 <Placement
                   icon={MoonStar}
                   label={t("astrology.nakshatra")}
-                  value={chart.data.nakshatra.name}
-                  sub={`${t("astrology.pada")} ${chart.data.nakshatra.pada} · ${t("astrology.lord")} ${chart.data.nakshatra.lord}`}
+                  value={nakshatraName(chart.data.nakshatra.name, locale)}
+                  sub={`${t("astrology.pada")} ${chart.data.nakshatra.pada} · ${t("astrology.lord")} ${planetName(chart.data.nakshatra.lord, locale)}`}
                 />
                 <Placement
                   icon={Sun}
                   label={t("astrology.sunSign")}
-                  value={chart.data.sunSign.sign}
-                  sub={chart.data.sunSign.sanskrit}
+                  value={signName(chart.data.sunSign.sign, locale)}
+                  sub={
+                    locale === "hi"
+                      ? signName(chart.data.sunSign.sign, locale)
+                      : chart.data.sunSign.sanskrit
+                  }
                 />
               </div>
             </motion.div>
@@ -154,22 +166,33 @@ export default function KundliScreen() {
                   key={p.planet}
                   type="button"
                   onClick={() => push({ id: "astrology.planets" })}
-                  aria-label={`${p.planet}, ${t("astrology.degreeFormat", { sign: p.sign, deg: p.degreeInSign.toFixed(1) })}`}
-                  className="press flex min-h-[44px] flex-col items-start rounded-2xl border bg-card px-3.5 py-3 text-left hover:bg-secondary/50"
+                  aria-label={`${planetName(p.planet, locale)}, ${t("astrology.degreeFormat", { sign: signName(p.sign, locale), deg: p.degreeInSign.toFixed(1) })}`}
+                  className="press flex min-h-[44px] items-center gap-2.5 rounded-2xl border bg-card px-3.5 py-3 text-left hover:bg-secondary/50"
                 >
-                  <div className="flex w-full items-center gap-1.5">
-                    <span className="text-[13.5px] font-semibold text-foreground">{p.planet}</span>
-                    {p.isRetrograde ? (
-                      <span className="rounded-full bg-warning/15 px-1.5 py-px text-[10px] font-bold text-warning-foreground">
-                        {t("astrology.retrograde")}
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10.5px] font-bold",
+                      PLANET_GLYPH_CLASS[p.planet]
+                    )}
+                  >
+                    {PLANET_ABBR[p.planet]}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex w-full items-center gap-1.5">
+                      <span className="truncate text-[13.5px] font-semibold text-foreground">{planetName(p.planet, locale)}</span>
+                      {p.isRetrograde ? (
+                        <span className="rounded-full bg-warning/15 px-1.5 py-px text-[10px] font-bold text-warning-foreground">
+                          {t("astrology.retrograde")}
+                        </span>
+                      ) : null}
+                      <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground">
+                        {t("astrology.houseChip", { house: p.house })}
                       </span>
-                    ) : null}
-                    <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground">
-                      {t("astrology.houseChip", { house: p.house })}
                     </span>
-                  </div>
-                  <span className="mt-1 text-[12.5px] text-muted-foreground">
-                    {t("astrology.degreeFormat", { sign: p.sign, deg: p.degreeInSign.toFixed(1) })}
+                    <span className="mt-1 block truncate text-[12.5px] text-muted-foreground">
+                      {t("astrology.degreeFormat", { sign: signName(p.sign, locale), deg: p.degreeInSign.toFixed(1) })}
+                    </span>
                   </span>
                 </button>
               ))}

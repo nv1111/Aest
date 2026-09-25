@@ -12,11 +12,12 @@ export async function GET(req: NextRequest) {
   if (!resolved) return fail(404, "no_profile", "Add your birth details first.");
 
   const { profile, input } = resolved;
+  const locale = req.nextUrl.searchParams.get("locale") === "hi" ? "hi" : "en";
   const dayKey = new Date().toISOString().slice(0, 10);
   const dasha = await cached(
-    `dasha:${profile.id}:${profile.updatedAt.toISOString()}:${dayKey}`,
+    `dasha:${profile.id}:${profile.updatedAt.toISOString()}:${dayKey}:${locale}`,
     6 * 3600000,
-    () => provider().getDasha(input)
+    () => provider().getDasha(input, new Date(), locale)
   );
   return ok(dasha);
 }

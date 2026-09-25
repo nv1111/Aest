@@ -389,9 +389,9 @@ export interface HomeAstrology {
 
 export interface AstrologyProvider {
   readonly info: ProviderInfo;
-  getBirthChart(input: AstrologyInput): BirthChart;
-  getDasha(input: AstrologyInput, asOf?: Date): DashaInfo;
-  getTransit(input: AstrologyInput, asOf?: Date): TransitInfo;
+  getBirthChart(input: AstrologyInput, locale?: "en" | "hi"): BirthChart;
+  getDasha(input: AstrologyInput, asOf?: Date, locale?: "en" | "hi"): DashaInfo;
+  getTransit(input: AstrologyInput, asOf?: Date, locale?: "en" | "hi"): TransitInfo;
   getPanchang(
     date: string,
     location: { name: string; latitude: number; longitude: number; timezone: string },
@@ -400,7 +400,8 @@ export interface AstrologyProvider {
   getHoroscope(input: AstrologyInput, period: HoroscopePeriod, asOf?: Date, locale?: "en" | "hi"): HoroscopeReading;
   getCompatibility(
     a: { id: string; input: AstrologyInput },
-    b: { id: string; input: AstrologyInput }
+    b: { id: string; input: AstrologyInput },
+    locale?: "en" | "hi"
   ): CompatibilityResult;
   getHomeAstrology(input: AstrologyInput, asOf?: Date, locale?: "en" | "hi"): HomeAstrology;
 }

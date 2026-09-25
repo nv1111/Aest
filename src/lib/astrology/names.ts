@@ -7,7 +7,7 @@
  * everywhere (dates/times stay identical between locales).
  */
 
-import type { ChoghadiyaName, PlanetName } from "./types";
+import { NAKSHATRAS, type ChoghadiyaName, type PlanetName } from "./types";
 
 export type EngineLocale = "en" | "hi";
 
@@ -58,6 +58,15 @@ export const NAKSHATRA_HI: string[] = [
   "चित्रा", "स्वाति", "विशाखा", "अनुराधा", "ज्येष्ठा", "मूल", "पूर्वाषाढ़ा",
   "उत्तराषाढ़ा", "श्रवण", "धनिष्ठा", "शतभिषा", "पूर्व भाद्रपद", "उत्तर भाद्रपद", "रेवती",
 ];
+
+/** English nakshatra name → Devanagari (same order as NAKSHATRAS in types.ts). */
+const NAKSHATRA_EN_TO_HI: Record<string, string> = Object.fromEntries(
+  NAKSHATRAS.map((name, i) => [name, NAKSHATRA_HI[i]])
+);
+
+export function nakshatraName(name: string, locale: EngineLocale): string {
+  return locale === "hi" ? NAKSHATRA_EN_TO_HI[name] ?? name : name;
+}
 
 // ------------------------------------------------------------------ tithi (14 + 2)
 

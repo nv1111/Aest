@@ -13,11 +13,20 @@ import type { Place } from "@/lib/cities";
 
 /** astrologyService — normalized data from the provider via the API. */
 export const astrologyService = {
-  chart: (profileId: string) => http.get<BirthChart>(`/api/astrology/chart?profileId=${profileId}`),
+  chart: (profileId: string, locale?: "en" | "hi") =>
+    http.get<BirthChart>(
+      `/api/astrology/chart?profileId=${profileId}${locale && locale !== "en" ? `&locale=${locale}` : ""}`
+    ),
 
-  dasha: (profileId: string) => http.get<DashaInfo>(`/api/astrology/dasha?profileId=${profileId}`),
+  dasha: (profileId: string, locale?: "en" | "hi") =>
+    http.get<DashaInfo>(
+      `/api/astrology/dasha?profileId=${profileId}${locale && locale !== "en" ? `&locale=${locale}` : ""}`
+    ),
 
-  transit: (profileId: string) => http.get<TransitInfo>(`/api/astrology/transit?profileId=${profileId}`),
+  transit: (profileId: string, locale?: "en" | "hi") =>
+    http.get<TransitInfo>(
+      `/api/astrology/transit?profileId=${profileId}${locale && locale !== "en" ? `&locale=${locale}` : ""}`
+    ),
 
   panchang: (date: string, profileId?: string, locale?: "en" | "hi") =>
     http.get<PanchangData>(
@@ -29,8 +38,12 @@ export const astrologyService = {
       `/api/astrology/horoscope?profileId=${profileId}&period=${period}${locale && locale !== "en" ? `&locale=${locale}` : ""}`
     ),
 
-  compatibility: (profileAId: string, profileBId: string) =>
-    http.post<CompatibilityResult>("/api/astrology/compatibility", { profileAId, profileBId }),
+  compatibility: (profileAId: string, profileBId: string, locale?: "en" | "hi") =>
+    http.post<CompatibilityResult>("/api/astrology/compatibility", {
+      profileAId,
+      profileBId,
+      ...(locale && locale !== "en" ? { locale } : {}),
+    }),
 
   home: (profileId: string, locale?: "en" | "hi") =>
     http.get<HomeAstrology>(

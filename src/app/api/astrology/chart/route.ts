@@ -12,10 +12,11 @@ export async function GET(req: NextRequest) {
   if (!resolved) return fail(404, "no_profile", "Add your birth details first.");
 
   const { profile, input } = resolved;
+  const locale = req.nextUrl.searchParams.get("locale") === "hi" ? "hi" : "en";
   const chart = await cached(
-    `chart:${profile.id}:${profile.updatedAt.toISOString()}`,
+    `chart:${profile.id}:${profile.updatedAt.toISOString()}:${locale}`,
     30 * 86400000,
-    () => provider().getBirthChart(input)
+    () => provider().getBirthChart(input, locale)
   );
   return ok(chart);
 }

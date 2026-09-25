@@ -10,6 +10,7 @@ import {
   type DashaSubPeriod,
   type DashaInfo,
 } from "../types";
+import { LORD_MEANING_HI, planetName, type EngineLocale } from "../names";
 
 const YEAR_MS = 365.2425 * 86400000;
 
@@ -129,11 +130,24 @@ const LORD_PHASE_ADVICE: Record<PlanetName, string> = {
   Ketu: "an inward phase — stepping back can move you forward",
 };
 
+const LORD_PHASE_ADVICE_HI: Record<PlanetName, string> = {
+  Sun: "एक ऐसा दौर जब आप काम के लिए आगे आएँ और सराहे जाएँ",
+  Moon: "एक ऐसा दौर जो भावनाओं को सींचने और अपने ज़रूरी लोगों से जुड़े रहने में सहायक है",
+  Mars: "एक ऐसा दौर जब ऊर्जा ऊँची रहती है, इसलिए इसे एक स्पष्ट लक्ष्य पर केंद्रित रखना ज़रूरी है",
+  Mercury: "एक ऐसा दौर जो पढ़ाई, बातचीत और नए कौशल के लिए ख़ासा अनुकूल है",
+  Jupiter: "एक ऐसा दौर जब सीखना, मार्गदर्शन और अवसर धीरे-धीरे बढ़ते हैं",
+  Venus: "एक ऐसा दौर जो रिश्तों, सौंदर्य और जीवन के छोटे सुखों के लिए अनुकूल है",
+  Saturn: "एक ऐसा दौर जो धीमा पर स्थिर है, जहाँ रफ़्तार से ज़्यादा निरंतरता काम आती है",
+  Rahu: "एक ऐसा दौर जब इच्छाएँ और उत्साह बड़े होते हैं, इसलिए ध्यान एक जगह रखना ज़रूरी है",
+  Ketu: "एक ऐसा दौर जो भीतर मुड़ने का है, जहाँ एक कदम पीछे हटना भी आगे ले जाता है",
+};
+
 export function buildDasha(
   moonLongitude: number,
   birthMs: number,
   asOf: Date,
-  provider: DashaInfo["provider"]
+  provider: DashaInfo["provider"],
+  locale: EngineLocale = "en"
 ): DashaInfo {
   const now = asOf.getTime();
   const maha = buildMahaChain(moonLongitude, birthMs);
@@ -152,10 +166,22 @@ export function buildDasha(
     return { ...toPeriod(m), isActive, progress: Math.round(progress * 1000) / 1000 };
   });
 
-  const simpleReading = {
-    headline: `You are in a ${currentMaha.lord} phase (${LORD_MEANING[currentMaha.lord]})`,
-    body: `Since ${new Date(currentMaha.startMs).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} your main planetary period is led by ${currentMaha.lord} — traditionally linked to ${LORD_MEANING[currentMaha.lord]}. Within it, the sub-period of ${currentAntar.lord} (${LORD_MEANING[currentAntar.lord]}) runs until ${new Date(currentAntar.endMs).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}. Traditional astrology reads this as ${LORD_PHASE_ADVICE[currentMaha.lord]}.`,
-  };
+  const fmtMY = (ms: number) =>
+    new Date(ms).toLocaleDateString(locale === "hi" ? "hi-IN" : "en-IN", {
+      month: "short",
+      year: "numeric",
+    });
+
+  const simpleReading =
+    locale === "hi"
+      ? {
+          headline: `आप ${planetName(currentMaha.lord, locale)} दशा में हैं (${LORD_MEANING_HI[currentMaha.lord]})`,
+          body: `${fmtMY(currentMaha.startMs)} से आपकी मुख्य ग्रह-दशा ${planetName(currentMaha.lord, locale)} के नेतृत्व में चल रही है — परंपरा इसे ${LORD_MEANING_HI[currentMaha.lord]} से जोड़ती है। इसी के भीतर ${planetName(currentAntar.lord, locale)} (${LORD_MEANING_HI[currentAntar.lord]}) की उप-दशा ${fmtMY(currentAntar.endMs)} तक रहेगी। परंपरागत ज्योतिष इसे इस तरह पढ़ता है — ${LORD_PHASE_ADVICE_HI[currentMaha.lord]}।`,
+        }
+      : {
+          headline: `You are in a ${currentMaha.lord} phase (${LORD_MEANING[currentMaha.lord]})`,
+          body: `Since ${new Date(currentMaha.startMs).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} your main planetary period is led by ${currentMaha.lord} — traditionally linked to ${LORD_MEANING[currentMaha.lord]}. Within it, the sub-period of ${currentAntar.lord} (${LORD_MEANING[currentAntar.lord]}) runs until ${new Date(currentAntar.endMs).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}. Traditional astrology reads this as ${LORD_PHASE_ADVICE[currentMaha.lord]}.`,
+        };
 
   return {
     provider,

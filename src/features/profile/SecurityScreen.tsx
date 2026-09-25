@@ -1,13 +1,8 @@
 "use client";
 
 import { KeyRound, Lock, LogOut, Smartphone, Timer, UserCheck } from "lucide-react";
-import { toast } from "sonner";
-import { useMutation } from "@tanstack/react-query";
-import { authService } from "@/services/auth";
-import { useMe, useRefreshMe } from "@/hooks/useSession";
-import { useAppStore } from "@/store/app";
+import { useMe, useSignOut } from "@/hooks/useSession";
 import { t } from "@/i18n";
-import { errorMessage } from "@/lib/http";
 import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { ListGroup, ListRow } from "./ListRow";
@@ -15,20 +10,10 @@ import { ListGroup, ListRow } from "./ListRow";
 /** Security — session facts + how we protect you, in plain language. */
 export function SecurityScreen() {
   const me = useMe();
-  const refreshMe = useRefreshMe();
-  const resetTab = useAppStore((s) => s.resetTab);
+  const logout = useSignOut();
 
   const phone = me.data?.user.phone;
   const masked = phone ? `+91 ${phone.slice(0, 2)}··· ···${phone.slice(-2)}` : "—";
-
-  const logout = useMutation({
-    mutationFn: () => authService.logout(),
-    onSuccess: async () => {
-      await refreshMe();
-      resetTab("home");
-    },
-    onError: (err) => toast.error(errorMessage(err)),
-  });
 
   const protections = [
     { icon: Smartphone, key: "profile.protectOtp" },

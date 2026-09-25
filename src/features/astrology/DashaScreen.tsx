@@ -5,10 +5,12 @@ import { motion } from "framer-motion";
 import { Hourglass, MoonStar } from "lucide-react";
 import { astrologyService } from "@/services/astrology";
 import { useActiveProfileId } from "./useActiveProfile";
-import { periodProgress } from "./utils";
+import { PLANET_ABBR, PLANET_GLYPH_CLASS } from "./constants";
+import { periodProgress, formatDateLocale } from "./utils";
 import { useAppStore } from "@/store/app";
 import { t } from "@/i18n";
-import { formatDateIN } from "@/lib/money";
+import { useLocaleStore } from "@/store/locale";
+import { planetName } from "@/lib/astrology/names";
 import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -16,16 +18,17 @@ import { ErrorState } from "@/components/shared/ErrorState";
 import { PageSkeleton } from "@/components/shared/PageSkeleton";
 import { DemoDataBadge } from "@/components/shared/DemoDataBadge";
 import { cn } from "@/lib/utils";
-import { DASHA_ORDER, type DashaInfo } from "@/lib/astrology/types";
+import { DASHA_ORDER, type DashaInfo, type PlanetName } from "@/lib/astrology/types";
 
 /** Dasha — "What phase am I in now?" with the full 120-year timeline. */
 export default function DashaScreen() {
   const { profileId, ready } = useActiveProfileId();
   const push = useAppStore((s) => s.push);
+  const locale = useLocaleStore((s) => s.locale);
 
   const dasha = useQuery<DashaInfo>({
-    queryKey: ["dasha", profileId],
-    queryFn: () => astrologyService.dasha(profileId!),
+    queryKey: ["dasha", profileId, locale],
+    queryFn: () => astrologyService.dasha(profileId!, locale),
     enabled: !!profileId,
     staleTime: 10 * 60_000,
     retry: 1,
@@ -65,7 +68,7 @@ export default function DashaScreen() {
         />
       ) : dasha.data ? (
         <div className="space-y-7 pt-1">
-          <NowSection data={dasha.data} />
+          <NowSection data={dasha.data} locale={locale} />
 
           {/* ------------------------------------------------ timeline strip */}
           <section aria-label={t("astrology.dashaTimeline")}>
@@ -90,7 +93,7 @@ export default function DashaScreen() {
                       </div>
                       <div
                         role={active ? "status" : undefined}
-                        aria-label={`${seg.lord} mahadasha, ${years} years`}
+                        aria-label={t("astrology.dashaChipAria", { lord: planetName(seg.lord, locale), years })}
                         className={cn(
                           "relative flex h-[64px] flex-col items-center justify-center overflow-hidden rounded-xl border transition-colors",
                           active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-secondary/60 text-muted-foreground"
@@ -128,10 +131,10 @@ export default function DashaScreen() {
                   {t("astrology.mahadasha")}
                 </p>
                 <p className="mt-1 font-display text-[16.5px] font-semibold text-foreground">
-                  {dasha.data.current.mahadasha.lord}
+                  {planetName(dasha.data.current.mahadasha.lord, locale)}
                 </p>
                 <p className="mt-0.5 text-[12.5px] text-muted-foreground">
-                  {formatDateIN(dasha.data.current.mahadasha.start)} — {formatDateIN(dasha.data.current.mahadasha.end)}
+                  {formatDateLocale(dasha.data.current.mahadasha.start, locale)} — {formatDateLocale(dasha.data.current.mahadasha.end, locale)}
                 </p>
                 <div className="mt-2.5 flex items-center gap-2.5">
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-border">
@@ -149,9 +152,9 @@ export default function DashaScreen() {
           </section>
 
           {/* ------------------------------------------------ antardasha list */}
-          <section aria-label={t("astrology.antardashasWithin", { lord: dasha.data.current.mahadasha.lord })}>
+          <section aria-label={t("astrology.antardashasWithin", { lord: planetName(dasha.data.current.mahadasha.lord, locale) })}>
             <SectionHeader>
-              {t("astrology.antardashasWithin", { lord: dasha.data.current.mahadasha.lord })}
+              {t("astrology.antardashasWithin", { lord: planetName(dasha.data.current.mahadasha.lord, locale) })}
             </SectionHeader>
             <div className="space-y-2 lg:grid lg:grid-cols-2 lg:items-start lg:gap-2 lg:space-y-0">
               {dasha.data.antardashas.map((sub) => (
@@ -164,7 +167,16 @@ export default function DashaScreen() {
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-[14px] font-semibold text-foreground">{sub.lord}</p>
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
+                          sub.isActive ? "bg-primary-foreground/20 text-primary-foreground" : PLANET_GLYPH_CLASS[sub.lord]
+                        )}
+                      >
+                        {PLANET_ABBR[sub.lord]}
+                      </span>
+                      <p className="text-[14px] font-semibold text-foreground">{planetName(sub.lord, locale)}</p>
                       {sub.isActive ? (
                         <span className="rounded-full bg-primary px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-primary-foreground">
                           {t("astrology.currentChip")}
@@ -172,7 +184,7 @@ export default function DashaScreen() {
                       ) : null}
                     </div>
                     <p className="mt-0.5 text-[12px] text-muted-foreground">
-                      {formatDateIN(sub.start)} — {formatDateIN(sub.end)}
+                      {formatDateLocale(sub.start, locale)} — {formatDateLocale(sub.end, locale)}
                     </p>
                   </div>
                   {sub.parent !== sub.lord ? (
@@ -190,8 +202,8 @@ export default function DashaScreen() {
 
 // ---------------------------------------------------------------- pieces
 
-function NowSection({ data }: { data: DashaInfo }) {
-  const asOf = formatDateIN(data.asOf);
+function NowSection({ data, locale }: { data: DashaInfo; locale: "en" | "hi" }) {
+  const asOf = formatDateLocale(data.asOf, locale);
   const antar = data.current.antardasha;
   const antarPct = periodProgress(antar.start, antar.end, data.asOf);
 
@@ -216,25 +228,31 @@ function NowSection({ data }: { data: DashaInfo }) {
       <div className="mt-3 space-y-2">
         <NowCard
           level={t("astrology.mahadasha")}
-          lord={data.current.mahadasha.lord}
+          lord={planetName(data.current.mahadasha.lord, locale)}
           start={data.current.mahadasha.start}
           end={data.current.mahadasha.end}
+          locale={locale}
+          glyphPlanet={data.current.mahadasha.lord}
           className="border-l-primary ml-0"
         />
         <NowCard
           level={t("astrology.antardasha")}
-          lord={antar.lord}
+          lord={planetName(antar.lord, locale)}
           start={antar.start}
           end={antar.end}
+          locale={locale}
           progress={antarPct}
+          glyphPlanet={antar.lord}
           className="border-l-primary/60 ml-3"
         />
         {data.current.pratyantardasha ? (
           <NowCard
             level={t("astrology.pratyantardasha")}
-            lord={data.current.pratyantardasha.lord}
+            lord={planetName(data.current.pratyantardasha.lord, locale)}
             start={data.current.pratyantardasha.start}
             end={data.current.pratyantardasha.end}
+            locale={locale}
+            glyphPlanet={data.current.pratyantardasha.lord}
             className="border-l-primary/30 ml-6"
           />
         ) : null}
@@ -248,23 +266,40 @@ function NowCard({
   lord,
   start,
   end,
+  locale,
   progress,
   className,
+  glyphPlanet,
 }: {
   level: string;
   lord: string;
   start: string;
   end: string;
+  locale: "en" | "hi";
   progress?: number;
   className?: string;
+  glyphPlanet?: PlanetName;
 }) {
   return (
     <div className={cn("rounded-2xl border border-l-[3px] bg-card px-4 py-3.5", className)}>
       <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{level}</p>
-      <div className="mt-1 flex items-baseline justify-between gap-3">
-        <p className="font-display text-[18px] font-semibold text-foreground">{lord}</p>
-        <p className="text-[12px] text-muted-foreground">
-          {formatDateIN(start)} — {formatDateIN(end)}
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2.5">
+          {glyphPlanet ? (
+            <span
+              aria-hidden
+              className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11.5px] font-bold",
+                PLANET_GLYPH_CLASS[glyphPlanet]
+              )}
+            >
+              {PLANET_ABBR[glyphPlanet]}
+            </span>
+          ) : null}
+          <span className="truncate font-display text-[18px] font-semibold text-foreground">{lord}</span>
+        </span>
+        <p className="shrink-0 text-[12px] text-muted-foreground">
+          {formatDateLocale(start, locale)} — {formatDateLocale(end, locale)}
         </p>
       </div>
       {typeof progress === "number" ? (

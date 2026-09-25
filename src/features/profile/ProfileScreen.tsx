@@ -22,7 +22,7 @@ import {
   User,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useMe, useRefreshMe } from "@/hooks/useSession";
+import { useMe, useRefreshMe, useSignOut } from "@/hooks/useSession";
 import { userService } from "@/services/user";
 import { authService } from "@/services/auth";
 import { useAppStore } from "@/store/app";
@@ -478,14 +478,7 @@ function TermsDialog() {
 // ---------------------------------------------------------------- logout
 
 function LogoutRow() {
-  const refreshMe = useRefreshMe();
-  const logout = useMutation({
-    mutationFn: () => authService.logout(),
-    onSuccess: async () => {
-      await refreshMe();
-    },
-    onError: (err) => toast.error(errorMessage(err)),
-  });
+  const logout = useSignOut();
 
   return (
     <AlertDialog>

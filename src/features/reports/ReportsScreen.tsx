@@ -2,7 +2,18 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { CalendarDays, FileText, Heart, ScrollText, Users, Briefcase } from "lucide-react";
+import {
+  Briefcase,
+  CalendarRange,
+  FileText,
+  Heart,
+  Loader2,
+  MessageSquare,
+  ScrollText,
+  Share2,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { reportService, type ReportType } from "@/services/reports";
 import { useMe } from "@/hooks/useSession";
@@ -20,20 +31,40 @@ import { PageSkeleton } from "@/components/shared/PageSkeleton";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { useShareReportImage } from "./ShareCard";
 
-const TEMPLATES: { type: ReportType; icon: typeof ScrollText; titleKey: string; descKey: string }[] = [
-  { type: "kundli", icon: ScrollText, titleKey: "reports.typeKundli", descKey: "reports.templateKundliDesc" },
-  { type: "career", icon: Briefcase, titleKey: "reports.typeCareer", descKey: "reports.templateCareerDesc" },
-  { type: "marriage", icon: Heart, titleKey: "reports.typeMarriage", descKey: "reports.templateMarriageDesc" },
-  { type: "yearly", icon: CalendarDays, titleKey: "reports.typeYearly", descKey: "reports.templateYearlyDesc" },
-  { type: "compatibility", icon: Users, titleKey: "reports.typeCompatibility", descKey: "reports.templateCompatibilityDesc" },
+/** Per-type icon tiles (type strings per schema/API: kundli | career | marriage | yearly | compatibility | consultation_summary). */
+const TYPE_ICONS: Record<string, LucideIcon> = {
+  kundli: ScrollText,
+  career: Briefcase,
+  marriage: Heart,
+  yearly: CalendarRange,
+  compatibility: Users,
+  consultation_summary: MessageSquare,
+};
+
+function reportTypeIcon(type: string): LucideIcon {
+  return TYPE_ICONS[type] ?? FileText;
+}
+
+const TEMPLATES: { type: ReportType; icon: LucideIcon; titleKey: string; descKey: string }[] = [
+  { type: "kundli", icon: reportTypeIcon("kundli"), titleKey: "reports.typeKundli", descKey: "reports.templateKundliDesc" },
+  { type: "career", icon: reportTypeIcon("career"), titleKey: "reports.typeCareer", descKey: "reports.templateCareerDesc" },
+  { type: "marriage", icon: reportTypeIcon("marriage"), titleKey: "reports.typeMarriage", descKey: "reports.templateMarriageDesc" },
+  { type: "yearly", icon: reportTypeIcon("yearly"), titleKey: "reports.typeYearly", descKey: "reports.templateYearlyDesc" },
+  { type: "compatibility", icon: reportTypeIcon("compatibility"), titleKey: "reports.typeCompatibility", descKey: "reports.templateCompatibilityDesc" },
 ];
+
+/** Shared hover-lift treatment for tappable report cards/rows. */
+const CARD_HOVER =
+  "hover:border-primary/30 hover:shadow-md hover:[transform:translateY(-1px)]";
 
 /** Reports — generate templates + your saved reports. */
 export function ReportsScreen() {
   const me = useMe();
   const push = useAppStore((s) => s.push);
   const qc = useQueryClient();
+  const shareImage = useShareReportImage();
   const profileId = me.data?.primaryProfile?.id;
   const profileName = me.data?.primaryProfile?.name;
 
@@ -88,7 +119,10 @@ export function ReportsScreen() {
                 transition={{ delay: i * 0.05, duration: 0.25 }}
                 disabled={generate.isPending}
                 onClick={() => generate.mutate(tpl.type)}
-                className="press flex w-full items-center gap-3.5 rounded-2xl border border-border bg-card p-4 text-left hover:bg-secondary/50 disabled:opacity-60"
+                className={cn(
+                  "press flex w-full items-center gap-3.5 rounded-2xl border border-border bg-card p-4 text-left hover:bg-secondary/50 disabled:opacity-60",
+                  CARD_HOVER
+                )}
                 aria-label={t(tpl.titleKey)}
               >
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">
@@ -127,27 +161,55 @@ export function ReportsScreen() {
           ) : (list.data?.reports.length ?? 0) === 0 ? (
             <EmptyState icon={FileText} title={t("reports.noReports")} body={t("reports.noReportsBody")} />
           ) : (
-            <div className="overflow-hidden rounded-2xl border border-border bg-card divide-y divide-hairline/70">
-              {list.data?.reports.map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => push({ id: "reports.details", params: { id: r.id } })}
-                  className="press flex w-full items-center gap-3.5 px-4 py-3.5 text-left hover:bg-secondary/50"
-                  aria-label={r.title}
-                >
-                  <span className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground/75">
-                    <FileText className="h-4.5 w-4.5" strokeWidth={1.75} />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-medium">{r.title}</span>
-                    <span className="mt-0.5 block text-[11.5px] text-muted-foreground">
-                      {t("reports.created")} {formatDateIN(r.createdAt)}
-                    </span>
-                  </span>
-                  <ReportStatusChip status={r.status} />
-                </button>
-              ))}
+            <div className="space-y-2">
+              {list.data?.reports.map((r) => {
+                const TypeIcon = reportTypeIcon(r.type);
+                const sharing = shareImage.pendingId === r.id;
+                return (
+                  <div
+                    key={r.id}
+                    className={cn(
+                      "press flex items-center gap-1 rounded-2xl border border-border bg-card py-1.5 pl-3 pr-1.5 hover:bg-secondary/40",
+                      CARD_HOVER
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => push({ id: "reports.details", params: { id: r.id } })}
+                      className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left"
+                      aria-label={r.title}
+                    >
+                      <span className="flex h-9.5 w-9.5 shrink-0 items-center justify-center rounded-xl bg-secondary text-foreground/75">
+                        <TypeIcon className="h-4.5 w-4.5" strokeWidth={1.75} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[14px] font-medium">{r.title}</span>
+                        <span className="mt-0.5 block text-[11.5px] text-muted-foreground">
+                          {t("reports.created")} {formatDateIN(r.createdAt)}
+                        </span>
+                      </span>
+                      <ReportStatusChip status={r.status} />
+                    </button>
+                    {r.status === "ready" ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={shareImage.pendingId !== null}
+                        aria-busy={sharing}
+                        aria-label={t("reports.shareImageShort")}
+                        onClick={() => void shareImage.share(r)}
+                        className="h-11 w-11 shrink-0 rounded-xl text-muted-foreground hover:text-foreground disabled:opacity-100"
+                      >
+                        {sharing ? (
+                          <Loader2 className="h-4.5 w-4.5 animate-spin" strokeWidth={1.75} />
+                        ) : (
+                          <Share2 className="h-4.5 w-4.5" strokeWidth={1.75} />
+                        )}
+                      </Button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
@@ -168,14 +230,36 @@ function GeneratingChip() {
 }
 
 export function ReportStatusChip({ status }: { status: string }) {
-  const map: Record<string, { label: string; className: string }> = {
-    ready: { label: t("reports.ready"), className: "bg-success/10 text-success" },
-    generating: { label: t("reports.statusGenerating"), className: "bg-warning/15 text-warning-foreground" },
-    failed: { label: t("reports.failed"), className: "bg-destructive/10 text-destructive" },
+  const map: Record<string, { label: string; className: string; dot: string }> = {
+    ready: {
+      label: t("reports.ready"),
+      className: "border-success/25 bg-success/10 text-success",
+      dot: "",
+    },
+    generating: {
+      label: t("reports.statusGenerating"),
+      className: "border-warning/35 bg-warning/10 text-warning-foreground",
+      dot: "tara-shimmer",
+    },
+    failed: {
+      label: t("reports.failed"),
+      className: "border-destructive/25 bg-destructive/10 text-destructive",
+      dot: "",
+    },
   };
-  const entry = map[status] ?? { label: status, className: "bg-secondary text-muted-foreground" };
+  const entry = map[status] ?? {
+    label: status,
+    className: "border-border bg-secondary text-muted-foreground",
+    dot: "",
+  };
   return (
-    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide", entry.className)}>
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10.5px] font-semibold tracking-wide",
+        entry.className
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full bg-current", entry.dot)} aria-hidden />
       {entry.label}
     </span>
   );

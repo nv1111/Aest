@@ -41,7 +41,14 @@ import { buildDasha, lordMeaning } from "./dasha";
 import { buildPanchang, currentChoghadiya } from "./panchang";
 import { buildCompatibility } from "./compatibility";
 import { buildHoroscope } from "./horoscope";
-import { HOUSE_THEMES_HI, LORD_MEANING_HI, planetName } from "../names";
+import {
+  HOUSE_THEMES_HI,
+  LORD_MEANING_HI,
+  nakshatraName,
+  planetName,
+  signName,
+  type EngineLocale,
+} from "../names";
 
 export const MOCK_PROVIDER_INFO: ProviderInfo = {
   id: "mock-engine-v1",
@@ -65,7 +72,27 @@ const PLANET_NATURE: Record<PlanetName, string> = {
   Ketu: "reflection and detachment",
 };
 
-function transitInterpretation(planet: PlanetName, house: number): string {
+const PLANET_NATURE_HI: Record<PlanetName, string> = {
+  Sun: "आत्मविश्वास और दृश्यता",
+  Moon: "भावनाएँ और घरेलू जीवन",
+  Mars: "ऊर्जा और जोश",
+  Mercury: "संवाद और अध्ययन",
+  Jupiter: "वृद्धि और अवसर",
+  Venus: "रिश्ते और सुख",
+  Saturn: "अनुशासन और उत्तरदायित्व",
+  Rahu: "महत्वाकांक्षा और बेचैनी",
+  Ketu: "चिंतन और वैराग्य",
+};
+
+function transitInterpretation(planet: PlanetName, house: number, locale: EngineLocale): string {
+  if (locale === "hi") {
+    const p = planetName(planet, locale);
+    const theme = HOUSE_THEMES_HI[house];
+    if (planet === "Saturn" || planet === "Rahu" || planet === "Ketu") {
+      return `${p} इस समय आपके ${house}वें भाव से गुज़र रहा है — ${theme}। परंपरागत ज्योतिष धीमे चलने वाले ${p} को इस भाव में ${theme} से जुड़ा धैर्य माँगने वाला समय मानता है; यहाँ अर्जित फल टिकाऊ होता है।`;
+    }
+    return `${p} इस समय आपके ${house}वें भाव से गुज़र रहा है — ${theme}। परंपरागत ज्योतिष इस दौर में जीवन के इस क्षेत्र पर ${PLANET_NATURE_HI[planet]} का बढ़ा प्रभाव मानता है।`;
+  }
   const nature = PLANET_NATURE[planet];
   const theme = HOUSE_THEMES[house].toLowerCase();
   if (planet === "Saturn" || planet === "Rahu" || planet === "Ketu") {
@@ -79,7 +106,7 @@ function transitInterpretation(planet: PlanetName, house: number): string {
 export class MockAstrologyProvider implements AstrologyProvider {
   readonly info = MOCK_PROVIDER_INFO;
 
-  getBirthChart(input: AstrologyInput): BirthChart {
+  getBirthChart(input: AstrologyInput, locale: "en" | "hi" = "en"): BirthChart {
     const birthUTC = localToUTC(input.dateOfBirth, input.timeOfBirth, input.timezone);
     const seed = hashString(`${input.dateOfBirth}|${input.timeOfBirth ?? "unknown"}|${input.latitude.toFixed(4)}|${input.longitude.toFixed(4)}`);
     const rng = mulberry32(seed);
@@ -130,7 +157,7 @@ export class MockAstrologyProvider implements AstrologyProvider {
         signIndex: i,
         signLord: SIGN_LORDS[sign],
         planets: planets.filter((p) => p.signIndex === i).map((p) => p.planet),
-        theme: HOUSE_THEMES[house],
+        theme: locale === "hi" ? HOUSE_THEMES_HI[house] : HOUSE_THEMES[house],
       };
     }).sort((a, b) => a.house - b.house);
 
@@ -162,31 +189,58 @@ export class MockAstrologyProvider implements AstrologyProvider {
     }).sort((a, b) => a.house - b.house);
 
     // Key highlights in plain language
-    const keyHighlights = [
-      {
-        title: `Your Moon sign is ${moon.sign}`,
-        body: `In Vedic astrology the Moon sign (${SIGN_SANSKRIT[moon.sign]}) is your emotional core — how you feel and respond, more than how you appear. The Moon sits in ${moon.nakshatra}, pada ${moon.nakshatraPada}.`,
-      },
-      {
-        title: `Your ascendant is ${SIGNS[ascSignIndex]}`,
-        body: `The ascendant (Lagna) is the sign rising on the eastern horizon at your birth — it shapes your overall approach to life. Its lord is ${SIGN_LORDS[SIGNS[ascSignIndex]]}, linked to ${lordMeaning(SIGN_LORDS[SIGNS[ascSignIndex]])}.`,
-      },
-      {
-        title: `Your Sun is in ${sun.sign}`,
-        body: `The Sun's sign describes your sense of purpose and identity. In ${sun.sign}, purpose is expressed through the qualities of this sign.`,
-      },
-      {
-        title: `${moon.nakshatra} nakshatra`,
-        body: `The Moon's nakshatra (birth star) is ${moon.nakshatra}, ruled by ${moon.nakshatraLord}. It sets your Vimshottari dasha sequence — the planetary phases of your life.`,
-      },
-    ];
+    const ascLord = SIGN_LORDS[SIGNS[ascSignIndex]];
+    const keyHighlights =
+      locale === "hi"
+        ? [
+            {
+              title: `आपकी चंद्र राशि ${signName(moon.sign, locale)} है`,
+              body: `वैदिक ज्योतिष में चंद्र राशि (${signName(moon.sign, locale)}) आपका भावनात्मक आधार है — आप कैसे दिखते हैं उससे ज़्यादा, आप कैसे महसूस करते और प्रतिक्रिया देते हैं। चंद्र ${nakshatraName(moon.nakshatra, locale)} नक्षत्र में हैं, पद ${moon.nakshatraPada}।`,
+            },
+            {
+              title: `आपका लग्न ${signName(SIGNS[ascSignIndex], locale)} है`,
+              body: `लग्न आपके जन्म के क्षण पूर्वी क्षितिज पर उदित होने वाली राशि है — यह जीवन के प्रति आपके समग्र दृष्टिकोण को आकार देती है। इसके स्वामी ${planetName(ascLord, locale)} हैं, जो ${LORD_MEANING_HI[ascLord]} से जुड़े हैं।`,
+            },
+            {
+              title: `सूर्य ${signName(sun.sign, locale)} में`,
+              body: `सूर्य की राशि आपके उद्देश्य और पहचान का संकेत देती है। ${signName(sun.sign, locale)} में उद्देश्य इसी राशि के गुणों के ज़रिए व्यक्त होता है।`,
+            },
+            {
+              title: `${nakshatraName(moon.nakshatra, locale)} नक्षत्र`,
+              body: `चंद्र का नक्षत्र (जन्म-तारा) ${nakshatraName(moon.nakshatra, locale)} है, जिसके स्वामी ${planetName(moon.nakshatraLord, locale)} हैं। यही आपकी विंशोत्तरी दशा का क्रम तय करता है — जीवन के ग्रह-दौर।`,
+            },
+          ]
+        : [
+            {
+              title: `Your Moon sign is ${moon.sign}`,
+              body: `In Vedic astrology the Moon sign (${SIGN_SANSKRIT[moon.sign]}) is your emotional core — how you feel and respond, more than how you appear. The Moon sits in ${moon.nakshatra}, pada ${moon.nakshatraPada}.`,
+            },
+            {
+              title: `Your ascendant is ${SIGNS[ascSignIndex]}`,
+              body: `The ascendant (Lagna) is the sign rising on the eastern horizon at your birth — it shapes your overall approach to life. Its lord is ${SIGN_LORDS[SIGNS[ascSignIndex]]}, linked to ${lordMeaning(SIGN_LORDS[SIGNS[ascSignIndex]])}.`,
+            },
+            {
+              title: `Your Sun is in ${sun.sign}`,
+              body: `The Sun's sign describes your sense of purpose and identity. In ${sun.sign}, purpose is expressed through the qualities of this sign.`,
+            },
+            {
+              title: `${moon.nakshatra} nakshatra`,
+              body: `The Moon's nakshatra (birth star) is ${moon.nakshatra}, ruled by ${moon.nakshatraLord}. It sets your Vimshottari dasha sequence — the planetary phases of your life.`,
+            },
+          ];
 
     const note =
-      input.timeAccuracy === "unknown"
-        ? "Birth time is unknown, so the ascendant and houses are estimated. Add your exact time later for an accurate chart."
-        : input.timeAccuracy === "approximate"
-          ? "Birth time is approximate, so house positions may shift slightly."
-          : "Chart calculated from your exact birth time.";
+      locale === "hi"
+        ? input.timeAccuracy === "unknown"
+          ? "जन्म समय अज्ञात है, इसलिए लग्न और भाव अनुमानित हैं। सटीक कुंडली के लिए बाद में अपना पक्का समय जोड़ें।"
+          : input.timeAccuracy === "approximate"
+            ? "जन्म समय लगभग बताया गया है, इसलिए भाव-स्थितियाँ थोड़ी बदल सकती हैं।"
+            : "कुंडली आपके सटीक जन्म समय से बनाई गई है।"
+        : input.timeAccuracy === "unknown"
+          ? "Birth time is unknown, so the ascendant and houses are estimated. Add your exact time later for an accurate chart."
+          : input.timeAccuracy === "approximate"
+            ? "Birth time is approximate, so house positions may shift slightly."
+            : "Chart calculated from your exact birth time.";
 
     return {
       provider: this.info,
@@ -203,27 +257,42 @@ export class MockAstrologyProvider implements AstrologyProvider {
       nakshatra: { name: moon.nakshatra, pada: moon.nakshatraPada, lord: moon.nakshatraLord },
       planets,
       houses,
-      divisional: [
-        { id: "D1", name: "Rashi (D1)", description: "The main birth chart — your core blueprint.", houses: d1Houses },
-        {
-          id: "D9",
-          name: "Navamsa (D9)",
-          description: "The 'fruit' chart — traditionally read for marriage, inner strength and later life.",
-          houses: d9Houses,
-        },
-      ],
+      divisional:
+        locale === "hi"
+          ? [
+              { id: "D1", name: "राशि (D1)", description: "मुख्य जन्म कुंडली — आपकी मूल रूपरेखा।", houses: d1Houses },
+              {
+                id: "D9",
+                name: "नवांश (D9)",
+                description: "'फल' कुंडली — परंपरा में विवाह, भीतरी बल और उत्तरार्ध जीवन के लिए देखी जाती है।",
+                houses: d9Houses,
+              },
+            ]
+          : [
+              { id: "D1", name: "Rashi (D1)", description: "The main birth chart — your core blueprint.", houses: d1Houses },
+              {
+                id: "D9",
+                name: "Navamsa (D9)",
+                description: "The 'fruit' chart — traditionally read for marriage, inner strength and later life.",
+                houses: d9Houses,
+              },
+            ],
       keyHighlights,
       note,
     };
   }
 
-  getDasha(input: AstrologyInput, asOf = new Date()): ReturnType<AstrologyProvider["getDasha"]> {
+  getDasha(
+    input: AstrologyInput,
+    asOf = new Date(),
+    locale: "en" | "hi" = "en"
+  ): ReturnType<AstrologyProvider["getDasha"]> {
     const birthUTC = localToUTC(input.dateOfBirth, input.timeOfBirth, input.timezone);
     const moonLong = siderealLongitude("Moon", birthUTC);
-    return buildDasha(moonLong, birthUTC.getTime(), asOf, this.info);
+    return buildDasha(moonLong, birthUTC.getTime(), asOf, this.info, locale);
   }
 
-  getTransit(input: AstrologyInput, asOf = new Date()): TransitInfo {
+  getTransit(input: AstrologyInput, asOf = new Date(), locale: "en" | "hi" = "en"): TransitInfo {
     const birthUTC = localToUTC(input.dateOfBirth, input.timeOfBirth, input.timezone);
     const ascLong = ascendantLongitude(birthUTC, input.latitude, input.longitude, input.timezone);
     const ascSignIndex = Math.floor(ascLong / 30);
@@ -249,13 +318,15 @@ export class MockAstrologyProvider implements AstrologyProvider {
         startedOn: startedOn.toISOString(),
         endsOn: endsOn.toISOString(),
         isRetrograde: isRetrograde(planet, asOf),
-        interpretation: transitInterpretation(planet, natalHouse),
+        interpretation: transitInterpretation(planet, natalHouse, locale),
       };
     });
 
     const slow = transits.filter((t) => ["Saturn", "Jupiter", "Rahu", "Ketu"].includes(t.planet));
-    const notable = slow.map(
-      (t) => `${t.planet} is in ${t.currentSign}, transiting your ${t.natalHouse}th house`
+    const notable = slow.map((t) =>
+      locale === "hi"
+        ? `${planetName(t.planet, locale)} ${signName(t.currentSign, locale)} में हैं और आपके ${t.natalHouse}वें भाव से गुज़र रहे हैं।`
+        : `${t.planet} is in ${t.currentSign}, transiting your ${t.natalHouse}th house`
     );
 
     return { provider: this.info, asOf: asOf.toISOString(), transits, notable };
@@ -283,7 +354,8 @@ export class MockAstrologyProvider implements AstrologyProvider {
 
   getCompatibility(
     a: { id: string; input: AstrologyInput },
-    b: { id: string; input: AstrologyInput }
+    b: { id: string; input: AstrologyInput },
+    locale: "en" | "hi" = "en"
   ) {
     const extract = ({ id, input }: { id: string; input: AstrologyInput }) => {
       const birthUTC = localToUTC(input.dateOfBirth, input.timeOfBirth, input.timezone);
@@ -299,7 +371,7 @@ export class MockAstrologyProvider implements AstrologyProvider {
         marsHouseFromMoon: houseFromSign(Math.floor(marsLongitude / 30), Math.floor(moonLongitude / 30)),
       };
     };
-    return buildCompatibility(extract(a), extract(b), this.info);
+    return buildCompatibility(extract(a), extract(b), this.info, locale);
   }
 
   getHomeAstrology(input: AstrologyInput, asOf = new Date(), locale: "en" | "hi" = "en"): HomeAstrology {

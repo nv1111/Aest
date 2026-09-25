@@ -43,6 +43,15 @@ export function nowInTimezone(timezone: string): string {
   }
 }
 
+/** formatDateIN "short" style, locale-aware (hi-IN in Hindi mode). */
+export function formatDateLocale(iso: string | Date, locale: "en" | "hi"): string {
+  return new Intl.DateTimeFormat(locale === "hi" ? "hi-IN" : "en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(iso instanceof Date ? iso : new Date(iso));
+}
+
 /** Is `now` (HH:mm) within [start, end) (HH:mm)? Lexicographic compare works for 24h. */
 export function isNowInSlot(now: string, start: string, end: string): boolean {
   if (!now) return false;

@@ -10,6 +10,8 @@ import { NorthChart } from "./components/NorthChart";
 import { Segmented } from "./components/Segmented";
 import { useAppStore } from "@/store/app";
 import { t } from "@/i18n";
+import { useLocaleStore } from "@/store/locale";
+import { planetName, signName } from "@/lib/astrology/names";
 import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -34,10 +36,11 @@ export default function ChartScreen() {
   const push = useAppStore((s) => s.push);
   const [variant, setVariant] = useState<Variant>("D1");
   const [activeHouse, setActiveHouse] = useState<number | null>(null);
+  const locale = useLocaleStore((s) => s.locale);
 
   const chart = useQuery<BirthChart>({
-    queryKey: ["chart", profileId],
-    queryFn: () => astrologyService.chart(profileId!),
+    queryKey: ["chart", profileId, locale],
+    queryFn: () => astrologyService.chart(profileId!, locale),
     enabled: !!profileId,
     staleTime: 10 * 60_000,
     retry: 1,
@@ -62,6 +65,9 @@ export default function ChartScreen() {
   const isDemo = chart.data?.provider?.mode === "mock";
 
   const activeHouseData = divisional?.houses.find((h) => h.house === activeHouse) ?? null;
+  const activeHouseTheme =
+    chart.data?.houses.find((h) => h.house === activeHouse)?.theme ??
+    HOUSE_THEMES[activeHouse ?? 0];
   const planetsWithDegrees = (names: string[]) =>
     names.map((name) => chart.data?.planets.find((p) => p.planet === name) ?? null);
 
@@ -112,6 +118,7 @@ export default function ChartScreen() {
                 houses={divisional.houses}
                 retroPlanets={retroPlanets}
                 activeHouse={activeHouse}
+                locale={locale}
                 onSelectHouse={(h) => setActiveHouse(h)}
               />
             </div>
@@ -163,11 +170,11 @@ export default function ChartScreen() {
             <>
               <SheetHeader className="pb-0">
                 <SheetTitle className="font-display text-[19px]">
-                  {t("astrology.houseTitle", { n: activeHouseData.house })} · {activeHouseData.sign}
+                  {t("astrology.houseTitle", { n: activeHouseData.house })} · {signName(activeHouseData.sign, locale)}
                 </SheetTitle>
                 <SheetDescription>
-                  {SIGN_SANSKRIT[activeHouseData.sign]} ·{" "}
-                  {t("astrology.signLordLabel")}: {SIGN_LORDS[activeHouseData.sign]}
+                  {locale === "hi" ? signName(activeHouseData.sign, locale) : SIGN_SANSKRIT[activeHouseData.sign]} ·{" "}
+                  {t("astrology.signLordLabel")}: {planetName(SIGN_LORDS[activeHouseData.sign], locale)}
                 </SheetDescription>
               </SheetHeader>
               <div className="scroll-thin space-y-4 overflow-y-auto px-5 pt-2">
@@ -186,10 +193,10 @@ export default function ChartScreen() {
                           key={p?.planet ?? "unknown"}
                           className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-[12.5px] font-medium text-foreground"
                         >
-                          {p?.planet ?? "—"}
+                          {p ? planetName(p.planet, locale) : "—"}
                           {p && variant === "D1" ? (
                             <span className="text-muted-foreground">
-                              {t("astrology.degreeFormat", { sign: p.sign, deg: p.degreeInSign.toFixed(1) })}
+                              {t("astrology.degreeFormat", { sign: signName(p.sign, locale), deg: p.degreeInSign.toFixed(1) })}
                             </span>
                           ) : null}
                           {p?.isRetrograde ? (
@@ -207,7 +214,7 @@ export default function ChartScreen() {
                     {t("astrology.houseTheme")}
                   </p>
                   <p className="mt-1 text-[13.5px] leading-relaxed text-foreground">
-                    {HOUSE_THEMES[activeHouseData.house]}
+                    {activeHouseTheme}
                   </p>
                 </div>
               </div>

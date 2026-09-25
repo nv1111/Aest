@@ -108,6 +108,7 @@ const astrology = {
   dashaTimeline: "आपकी दशाओं की समय-रेखा",
   dashaYouAreHere: "आप यहाँ हैं",
   yearsSpan: "{years} वर्ष",
+  dashaChipAria: "{lord} महादशा, {years} वर्ष",
   dashaAsOf: "{date} के अनुसार",
   dashaElapsed: "यह दशा {pct}% पूरी हो चुकी है",
   antardashasWithin: "{lord} महादशा के भीतर की अंतर्दशाएँ",

@@ -10,9 +10,10 @@ import { astrologyFeatureApi, storeCompatResult, type InlineProfileB } from "./a
 import { Segmented } from "./components/Segmented";
 import { PlaceSearch } from "@/features/onboarding/PlaceSearch";
 import { useAppStore } from "@/store/app";
+import { useLocaleStore } from "@/store/locale";
 import { t } from "@/i18n";
 import { errorMessage } from "@/lib/http";
-import { formatDateIN } from "@/lib/money";
+import { formatDateLocale } from "./utils";
 import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -37,6 +38,7 @@ export default function CompatibilityScreen() {
   const me = useMe();
   const refreshMe = useRefreshMe();
   const push = useAppStore((s) => s.push);
+  const locale = useLocaleStore((s) => s.locale);
 
   const profiles = me.data?.profiles ?? [];
   const primaryId = me.data?.primaryProfile?.id;
@@ -54,10 +56,11 @@ export default function CompatibilityScreen() {
   const resolvedAId = aId ?? primaryId;
   const others = useMemo(() => profiles.filter((p) => p.id !== resolvedAId), [profiles, resolvedAId]);
 
-  const calculate = useMutation<CompatibilityResult, Error, void>({
-    mutationFn: async () => {
+  const calculate = useMutation<CompatibilityResult, Error, "en" | "hi">({
+    // locale travels as the mutation variable — read once, at send time
+    mutationFn: async (sendLocale) => {
       if (bId) {
-        return astrologyFeatureApi.compatibility({ profileAId: resolvedAId!, profileBId: bId });
+        return astrologyFeatureApi.compatibility({ profileAId: resolvedAId!, profileBId: bId, locale: sendLocale });
       }
       // inline second person — created server-side by the same POST
       const inline: InlineProfileB = {
@@ -71,10 +74,10 @@ export default function CompatibilityScreen() {
         longitude: place!.longitude,
         timezone: place!.timezone,
       };
-      return astrologyFeatureApi.compatibility({ profileAId: resolvedAId!, profileB: inline });
+      return astrologyFeatureApi.compatibility({ profileAId: resolvedAId!, profileB: inline, locale: sendLocale });
     },
-    onSuccess: (result) => {
-      storeCompatResult(result);
+    onSuccess: (result, sendLocale) => {
+      storeCompatResult(result, sendLocale);
       refreshMe(); // profile B may have been created server-side
       push({
         id: "astrology.compatibilityResult",
@@ -107,7 +110,7 @@ export default function CompatibilityScreen() {
       setErrors(next);
       if (Object.keys(next).length > 0) return;
     }
-    calculate.mutate();
+    calculate.mutate(useLocaleStore.getState().locale);
   };
 
   const canSubmit =
@@ -145,6 +148,7 @@ export default function CompatibilityScreen() {
                   name={p.name}
                   place={p.placeName}
                   dob={p.dateOfBirth}
+                  locale={locale}
                   isYou={p.id === primaryId}
                   selected={p.id === resolvedAId}
                   onClick={() => {
@@ -168,6 +172,7 @@ export default function CompatibilityScreen() {
                 name={p.name}
                 place={p.placeName}
                 dob={p.dateOfBirth}
+                locale={locale}
                 isYou={false}
                 selected={bId === p.id}
                 onClick={() => pickB(p.id)}
@@ -311,6 +316,7 @@ function ProfileCard({
   name,
   place,
   dob,
+  locale,
   isYou,
   selected,
   onClick,
@@ -318,6 +324,7 @@ function ProfileCard({
   name: string;
   place: string;
   dob: string;
+  locale: "en" | "hi";
   isYou: boolean;
   selected: boolean;
   onClick: () => void;
@@ -345,7 +352,7 @@ function ProfileCard({
         <MapPin className="h-3 w-3 shrink-0" /> <span className="truncate">{place}</span>
       </p>
       <p className="mt-1 flex w-full items-center gap-1 truncate text-[11px] text-muted-foreground/70">
-        <CalendarDays className="h-3 w-3 shrink-0" /> {formatDateIN(new Date(`${dob}T12:00:00`))}
+        <CalendarDays className="h-3 w-3 shrink-0" /> {formatDateLocale(new Date(`${dob}T12:00:00`), locale)}
       </p>
       {selected ? (
         <span className="mt-1.5 inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary">

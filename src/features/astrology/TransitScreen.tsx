@@ -8,7 +8,9 @@ import { PLANET_ABBR, PLANET_GLYPH_CLASS } from "./constants";
 import { useActiveProfileId } from "./useActiveProfile";
 import { useAppStore } from "@/store/app";
 import { t } from "@/i18n";
-import { formatDateIN } from "@/lib/money";
+import { useLocaleStore } from "@/store/locale";
+import { planetName, signName } from "@/lib/astrology/names";
+import { formatDateLocale } from "./utils";
 import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -27,10 +29,11 @@ export default function TransitScreen() {
   const { profileId, ready } = useActiveProfileId();
   const push = useAppStore((s) => s.push);
   const openInTab = useAppStore((s) => s.openInTab);
+  const locale = useLocaleStore((s) => s.locale);
 
   const transit = useQuery<TransitInfo>({
-    queryKey: ["transit", profileId],
-    queryFn: () => astrologyService.transit(profileId!),
+    queryKey: ["transit", profileId, locale],
+    queryFn: () => astrologyService.transit(profileId!, locale),
     enabled: !!profileId,
     staleTime: 5 * 60_000,
     retry: 1,
@@ -52,12 +55,12 @@ export default function TransitScreen() {
 
   const byPlanet = new Map((transit.data?.transits ?? []).map((tr) => [tr.planet, tr]));
   const isDemo = transit.data?.provider?.mode === "mock";
-  const asOf = transit.data ? formatDateIN(transit.data.asOf) : "";
+  const asOf = transit.data ? formatDateLocale(transit.data.asOf, locale) : "";
 
   const askAbout = (e: TransitEntry) =>
     openInTab("ask", {
       id: "ask",
-      params: { q: t("astrology.transitQuestion", { planet: e.planet, house: e.natalHouse }) },
+      params: { q: t("astrology.transitQuestion", { planet: planetName(e.planet, locale), house: e.natalHouse }) },
     });
 
   return (
@@ -107,9 +110,9 @@ export default function TransitScreen() {
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <p className="text-[15px] font-semibold text-foreground">{e.planet}</p>
+                          <p className="text-[15px] font-semibold text-foreground">{planetName(e.planet, locale)}</p>
                           <span className="text-[12.5px] text-muted-foreground">
-                            {t("astrology.transitInSign", { sign: e.currentSign })}
+                            {t("astrology.transitInSign", { sign: signName(e.currentSign, locale) })}
                           </span>
                           <span className="rounded-full bg-accent px-2.5 py-0.5 text-[10.5px] font-semibold text-accent-foreground">
                             {t("astrology.transitHouse", { house: e.natalHouse })}
@@ -121,7 +124,7 @@ export default function TransitScreen() {
                           ) : null}
                         </div>
                         <p className="mt-1 text-[11.5px] text-muted-foreground">
-                          {t("astrology.transitSince", { date: formatDateIN(e.startedOn), date2: formatDateIN(e.endsOn) })}
+                          {t("astrology.transitSince", { date: formatDateLocale(e.startedOn, locale), date2: formatDateLocale(e.endsOn, locale) })}
                         </p>
                       </div>
                     </div>
@@ -153,7 +156,7 @@ export default function TransitScreen() {
                     key={e.planet}
                     type="button"
                     onClick={() => askAbout(e)}
-                    aria-label={`${e.planet} ${t("astrology.transitInSign", { sign: e.currentSign })}`}
+                    aria-label={`${planetName(e.planet, locale)} ${t("astrology.transitInSign", { sign: signName(e.currentSign, locale) })}`}
                     className="press flex min-h-[44px] w-full items-center gap-3 border-b border-hairline/60 px-4 py-3 text-left last:border-0 hover:bg-secondary/50"
                   >
                     <span
@@ -164,15 +167,15 @@ export default function TransitScreen() {
                     >
                       {PLANET_ABBR[e.planet]}
                     </span>
-                    <span className="text-[13.5px] font-semibold text-foreground">{e.planet}</span>
+                    <span className="text-[13.5px] font-semibold text-foreground">{planetName(e.planet, locale)}</span>
                     <span className="text-[12.5px] text-muted-foreground">
-                      {t("astrology.transitInSign", { sign: e.currentSign })}
+                      {t("astrology.transitInSign", { sign: signName(e.currentSign, locale) })}
                     </span>
                     <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground">
                       {t("astrology.houseChip", { house: e.natalHouse })}
                     </span>
                     <span className="hidden text-[11.5px] text-muted-foreground/80 sm:block">
-                      {t("astrology.transitUntil", { date: formatDateIN(e.endsOn) })}
+                      {t("astrology.transitUntil", { date: formatDateLocale(e.endsOn, locale) })}
                     </span>
                   </button>
                 );

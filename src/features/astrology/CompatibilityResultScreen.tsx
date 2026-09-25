@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Check, HeartHandshake, MessagesSquare, MoonStar, Sparkles, Users } from "lucide-react";
 import { astrologyFeatureApi, readCompatResult } from "./api";
 import { useCurrentScreen, useAppStore } from "@/store/app";
+import { useLocaleStore } from "@/store/locale";
 import { t } from "@/i18n";
 import { ScreenScaffold } from "@/components/shared/ScreenScaffold";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -24,16 +25,17 @@ export default function CompatibilityResultScreen() {
   const screen = useCurrentScreen();
   const push = useAppStore((s) => s.push);
   const openInTab = useAppStore((s) => s.openInTab);
+  const locale = useLocaleStore((s) => s.locale);
   const aId = screen.params?.aId;
   const bId = screen.params?.bId;
 
   const result = useQuery<CompatibilityResult, Error>({
     // sessionStorage handoff first; server cache makes the fallback POST instant
-    queryKey: ["compat", aId, bId],
+    queryKey: ["compat", aId, bId, locale],
     queryFn: () => {
-      const stored = readCompatResult();
+      const stored = readCompatResult(locale);
       if (stored && stored.profileA.id === aId && stored.profileB.id === bId) return stored;
-      return astrologyFeatureApi.compatibility({ profileAId: aId!, profileBId: bId! });
+      return astrologyFeatureApi.compatibility({ profileAId: aId!, profileBId: bId!, locale });
     },
     enabled: !!aId && !!bId,
     staleTime: 10 * 60_000,

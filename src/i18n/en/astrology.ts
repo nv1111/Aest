@@ -108,6 +108,7 @@ const astrology = {
   dashaTimeline: "Your phase timeline",
   dashaYouAreHere: "You are here",
   yearsSpan: "{years} yrs",
+  dashaChipAria: "{lord} mahadasha, {years} years",
   dashaAsOf: "As of {date}",
   dashaElapsed: "{pct}% through this phase",
   antardashasWithin: "Phases within {lord}'s mahadasha",

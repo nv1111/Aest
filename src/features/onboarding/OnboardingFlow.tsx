@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, ShieldCheck, ChevronRight, ReceiptIndianRupee } from "lucide-react";
+import { Sparkles, ShieldCheck, ChevronRight, ReceiptIndianRupee, Check } from "lucide-react";
 import { toast } from "sonner";
-import { t } from "@/i18n";
+import { t, LOCALES, type Locale } from "@/i18n";
+import { useLocaleStore } from "@/store/locale";
 import { authService } from "@/services/auth";
 import { profileService } from "@/services/profiles";
 import { useMe, useRefreshMe } from "@/hooks/useSession";
@@ -23,25 +24,27 @@ import type { Place } from "@/lib/cities";
 import { errorMessage } from "@/lib/http";
 import { Splash } from "@/components/app/Splash";
 
-type Step = "welcome" | "promises" | "phone" | "otp" | "name" | "birth" | "ready";
+type Step = "language" | "welcome" | "promises" | "phone" | "otp" | "name" | "birth" | "ready";
 
 /**
- * Onboarding — short, honest, ChatGPT-simple. Welcome → why we exist →
- * privacy → account → birth details → home.
+ * Onboarding — short, honest, ChatGPT-simple. Language → welcome → why we
+ * exist → privacy → account → birth details → home.
  */
 export function OnboardingFlow() {
   const me = useMe();
   const refreshMe = useRefreshMe();
-  const [step, setStep] = useState<Step>("welcome");
+  const changeLocale = useLocaleStore((s) => s.changeLocale);
+  const [step, setStep] = useState<Step>("language");
   const [phone, setPhone] = useState("");
   const [demoOtp, setDemoOtp] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Returning user without a completed profile resumes the flow at the
-  // right step (name if missing, otherwise birth details)
+  // right step (name if missing, otherwise birth details) — signed-in users
+  // already have a language, so they skip the first-run language step.
   useEffect(() => {
-    if (me.data?.user && step === "welcome") {
+    if (me.data?.user && (step === "language" || step === "welcome")) {
       const u = me.data.user;
       setName(u.name ?? "");
       if (me.data.profiles.length === 0) {
@@ -52,6 +55,13 @@ export function OnboardingFlow() {
 
   const goToApp = async () => {
     await refreshMe();
+  };
+
+  const pickLanguage = (locale: Locale) => {
+    // Switch first — t() reads the new locale synchronously, so the step that
+    // mounts next (and the whole app) renders in the chosen language.
+    changeLocale(locale);
+    setStep("welcome");
   };
 
   const requestOtp = async () => {
@@ -96,6 +106,7 @@ export function OnboardingFlow() {
           exit={{ opacity: 0, x: -14 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
+          {step === "language" && <LanguageStep onPick={pickLanguage} />}
           {step === "welcome" && <WelcomeStep onNext={() => setStep("promises")} />}
           {step === "promises" && <PromisesStep onNext={() => setStep("phone")} />}
           {step === "phone" && (
@@ -169,6 +180,89 @@ function OnboardingShell({
   );
 }
 
+// ------------------------------------------------------------------ language
+
+/**
+ * First-run language choice. Runs BEFORE any language is chosen, so the
+ * title/subtitle render in whatever the current locale is (English by
+ * default); both cards stay in their own script. Tapping a card switches the
+ * locale and advances — the rest of onboarding continues in that language.
+ */
+function LanguageStep({ onPick }: { onPick: (locale: Locale) => void }) {
+  const locale = useLocaleStore((s) => s.locale);
+
+  return (
+    <OnboardingShell>
+      <h1 className="font-display text-[28px] font-semibold leading-[1.15] tracking-tight">
+        {t("onboarding.languageTitle")}
+      </h1>
+      <p className="mt-3 text-[14.5px] leading-relaxed text-muted-foreground">
+        {t("onboarding.languageSubtitle")}
+      </p>
+      <div
+        role="radiogroup"
+        aria-label={t("onboarding.languageStepAria")}
+        className="mt-8 grid grid-cols-1 gap-3 min-[380px]:grid-cols-2"
+      >
+        {LOCALES.map((l, i) => {
+          const active = locale === l.code;
+          const hint =
+            l.code === "hi" ? t("onboarding.languageHintHindi") : t("onboarding.languageHintEnglish");
+          return (
+            <motion.div
+              key={l.code}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.12, duration: 0.35 }}
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={active}
+                aria-label={`${l.nativeLabel} — ${hint}`}
+                onClick={() => onPick(l.code)}
+                className={
+                  "press relative flex h-full min-h-11 w-full flex-col items-center rounded-2xl border p-5 text-center outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 " +
+                  (active
+                    ? "border-primary/40 bg-accent/60"
+                    : "border-border bg-card hover:bg-secondary/70")
+                }
+              >
+                <span
+                  aria-hidden
+                  className={
+                    "flex h-13 w-13 items-center justify-center rounded-2xl text-[19px] font-semibold " +
+                    (active
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-foreground/75")
+                  }
+                >
+                  {l.code === "hi" ? "अ" : "A"}
+                </span>
+                <span className="mt-3.5">
+                  <span className="block text-[15.5px] font-semibold leading-tight">
+                    {l.nativeLabel}
+                  </span>
+                  <span className="mt-1 block text-[12px] leading-snug text-muted-foreground">
+                    {hint}
+                  </span>
+                </span>
+                {active ? (
+                  <Check
+                    aria-hidden
+                    className="absolute right-3.5 top-3.5 h-4.5 w-4.5 text-success"
+                    strokeWidth={2.25}
+                  />
+                ) : null}
+              </button>
+            </motion.div>
+          );
+        })}
+      </div>
+    </OnboardingShell>
+  );
+}
+
 // ------------------------------------------------------------------ welcome
 
 function WelcomeStep({ onNext }: { onNext: () => void }) {
@@ -181,7 +275,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
             <ChevronRight className="ml-1 h-4.5 w-4.5" />
           </Button>
           <p className="text-center text-[11.5px] text-muted-foreground">
-            By continuing you agree to our Terms & Privacy Policy
+            {t("onboarding.welcomeTerms")}
           </p>
         </div>
       }
@@ -238,7 +332,7 @@ function PromisesStep({ onNext }: { onNext: () => void }) {
     >
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">{t("onboarding.privacyTitle")}</p>
       <h1 className="mt-2 font-display text-[28px] font-semibold leading-[1.15] tracking-tight">
-        Three promises we make to you
+        {t("onboarding.privacyHeading")}
       </h1>
       <div className="mt-8 space-y-5">
         {promises.map((p, i) => (
@@ -286,7 +380,7 @@ function PhoneStep({
           className="h-13 w-full rounded-full text-[15px] font-semibold press"
           size="lg"
         >
-          {loading ? "Sending…" : t("onboarding.phoneSend")}
+          {loading ? t("onboarding.phoneSending") : t("onboarding.phoneSend")}
         </Button>
       }
     >
@@ -364,7 +458,7 @@ function OtpStep({
             className="h-13 w-full rounded-full text-[15px] font-semibold press"
             size="lg"
           >
-            {loading ? "Verifying…" : t("onboarding.otpVerify")}
+            {loading ? t("onboarding.otpVerifying") : t("onboarding.otpVerify")}
           </Button>
           <button
             type="button"
