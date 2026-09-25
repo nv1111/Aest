@@ -1,0 +1,326 @@
+// Tara — customer-side jyotish platform. Single source of truth for data.
+// Conventions: UUID ids, createdAt/updatedAt everywhere, JSON stored as String
+// (SQLite has no arrays/objects), money as Float (INR), birth dates as ISO strings.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- auth & users
+
+model User {
+  id            String   @id @default(uuid())
+  phone         String?  @unique
+  email         String?
+  name          String?
+  avatarUrl     String?
+  language      String   @default("en")
+  onboardingDone Boolean @default(false)
+  isDemo        Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions         Session[]
+  birthProfiles    BirthProfile[]
+  wallet           WalletAccount?
+  transactions     WalletTransaction[]
+  payments         Payment[]
+  consultations    Consultation[]
+  aiConversations  AiConversation[]
+  reports          Report[]
+  notifications         Notification[]
+  notificationPref     NotificationPreference?
+  supportTickets       SupportTicket[]
+  favorites            Favorite[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model OtpCode {
+  id        String    @id @default(uuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  consumedAt DateTime?
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  @@index([phone])
+}
+
+// ------------------------------------------------------------- birth profiles
+
+model BirthProfile {
+  id           String  @id @default(uuid())
+  userId       String
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  relation     String  @default("self") // self | partner | family | other
+  dateOfBirth  String // YYYY-MM-DD — stored as string to avoid timezone drift
+  timeOfBirth  String? // HH:mm — null when unknown
+  timeAccuracy String  @default("exact") // exact | approximate | unknown
+  placeName    String
+  placeCountry String?
+  latitude     Float
+  longitude    Float
+  timezone     String // IANA, e.g. Asia/Kolkata
+  isPrimary    Boolean @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  reports Report[]
+
+  @@index([userId])
+}
+
+// --------------------------------------------------- deterministic calculations
+
+model AstrologyCache {
+  id          String   @id @default(uuid())
+  cacheKey    String   @unique
+  payloadJson String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+}
+
+// ----------------------------------------------------------------- astrologers
+
+model Astrologer {
+  id                String  @id @default(uuid())
+  displayName       String
+  slug              String  @unique
+  photoUrl          String?
+  gender            String  @default("male")
+  expertise         String // JSON array, e.g. ["Vedic","Kundli"]
+  languages         String // JSON array, e.g. ["Hindi","English"]
+  experienceYears   Int
+  rating            Float   @default(0)
+  reviewCount       Int     @default(0)
+  consultationCount Int     @default(0)
+  pricePerMinute    Float
+  isVerified        Boolean @default(false) // ONLY backend-controlled; never hard-code in UI
+  onlineStatus      String  @default("offline") // online | away | offline
+  availableFrom     DateTime? // when "available soon"
+  about             String
+  consultationModes String  @default("[\"chat\"]") // JSON array of chat|audio|video
+  isDemo            Boolean @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  reviews       Review[]
+  consultations Consultation[]
+  favorites     Favorite[]
+}
+
+model Review {
+  id           String    @id @default(uuid())
+  astrologerId String
+  astrologer   Astrologer @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+  userId       String?
+  authorName   String
+  rating       Int // 1..5
+  text         String
+  createdAt    DateTime  @default(now())
+  isDemo       Boolean   @default(true)
+
+  @@index([astrologerId])
+}
+
+model Favorite {
+  id           String    @id @default(uuid())
+  userId       String
+  astrologerId String
+  createdAt    DateTime  @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  astrologer   Astrologer @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, astrologerId])
+}
+
+// ---------------------------------------------------------------- consultations
+
+model Consultation {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  astrologerId String
+  astrologer   Astrologer @relation(fields: [astrologerId], references: [id])
+  mode         String    @default("chat") // chat | audio | video
+  status       String    @default("requested") // requested | active | ended | cancelled
+  ratePerMinute Float
+  startedAt    DateTime?
+  endedAt      DateTime?
+  durationSeconds Int?
+  totalAmount  Float? // server-settled amount
+  summary      String?
+  userConsentShared Boolean @default(true) // user allowed chart context to astrologer
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  messages Message[]
+  reports  Report[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  consultationId String
+  consultation   Consultation @relation(fields: [consultationId], references: [id], onDelete: Cascade)
+  senderRole     String // user | astrologer | system
+  content        String
+  type           String   @default("text") // text | image | chart | report | system
+  attachmentUrl  String?
+  readAt         DateTime?
+  createdAt      DateTime   @default(now())
+
+  @@index([consultationId])
+}
+
+// ----------------------------------------------------------------- AI assistant
+
+model AiConversation {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String   @default("New conversation")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages AiMessage[]
+
+  @@index([userId])
+}
+
+model AiMessage {
+  id             String          @id @default(uuid())
+  conversationId String
+  conversation   AiConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // user | assistant
+  content        String
+  factorsJson    String? // "Why?" disclosure: array of {label, detail}
+  followUpsJson  String? // suggested follow-up questions
+  feedback       Int? // 1 helpful | -1 not helpful
+  createdAt      DateTime        @default(now())
+
+  @@index([conversationId])
+}
+
+// ------------------------------------------------------------------ wallet/pay
+
+model WalletAccount {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Float    @default(0)
+  currency  String   @default("INR")
+  updatedAt DateTime @updatedAt
+}
+
+model WalletTransaction {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String // recharge | consultation_debit | refund | promo_credit | adjustment
+  amount      Float // signed: credit positive, debit negative
+  status      String   @default("success") // pending | success | failed
+  description String
+  referenceId String? // payment id / consultation id
+  balanceAfter Float?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Payment {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount       Float
+  method       String    @default("upi") // demo provider methods
+  status       String    @default("created") // created | processing | success | failed | refunded
+  gatewayRef   String? // mock provider reference
+  failureReason String?
+  transactionId String? // wallet transaction id on success
+  createdAt    DateTime  @default(now())
+  completedAt  DateTime?
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------- reports
+
+model Report {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId      String?
+  profile        BirthProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  type           String // kundli | career | marriage | yearly | compatibility | consultation_summary
+  title          String
+  status         String    @default("generating") // generating | ready | failed
+  contentJson    String? // sections: [{heading, body}]
+  consultationId String?
+  consultation   Consultation? @relation(fields: [consultationId], references: [id], onDelete: SetNull)
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------- notifications
+
+model Notification {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String // consultation_update | astrologer_reply | report | payment | wallet | daily | event
+  title      String
+  body       String
+  dataJson   String?
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model NotificationPreference {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prefsJson String // {"daily":true,"consultations":true,...}
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------- support
+
+model SupportTicket {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject    String
+  category   String    @default("general") // general | billing | privacy | astrologer | bug
+  message    String
+  status     String    @default("open") // open | in_progress | resolved
+  response   String?
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  @@index([userId])
+}

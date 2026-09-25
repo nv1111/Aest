@@ -1,0 +1,198 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-surface: var(--surface);
+  --color-hairline: var(--hairline);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+/*
+  TARA DESIGN TOKENS — "premium personal guidance, not mystical clutter"
+  Warm ivory paper, deep warm ink, ONE terracotta accent, sage/clay support tones.
+*/
+:root {
+  --radius: 0.875rem;
+
+  /* paper & ink */
+  --background: oklch(0.983 0.007 85);          /* warm ivory */
+  --foreground: oklch(0.27 0.018 55);           /* deep warm charcoal */
+  --surface: oklch(1 0 0);
+  --hairline: oklch(0.905 0.012 82);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.27 0.018 55);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.27 0.018 55);
+
+  /* the one accent — terracotta */
+  --primary: oklch(0.545 0.125 43);
+  --primary-foreground: oklch(0.985 0.006 85);
+
+  --secondary: oklch(0.955 0.014 80);           /* warm sand */
+  --secondary-foreground: oklch(0.36 0.03 55);
+  --muted: oklch(0.955 0.009 85);
+  --muted-foreground: oklch(0.51 0.02 62);
+  --accent: oklch(0.935 0.035 52);              /* soft terracotta tint */
+  --accent-foreground: oklch(0.42 0.1 45);
+
+  --destructive: oklch(0.577 0.215 27);
+  --success: oklch(0.52 0.11 150);              /* deep calm green */
+  --success-foreground: oklch(0.985 0.006 85);
+  --warning: oklch(0.72 0.13 75);               /* muted amber */
+  --warning-foreground: oklch(0.25 0.04 60);
+
+  --border: oklch(0.905 0.012 82);
+  --input: oklch(0.905 0.012 82);
+  --ring: oklch(0.545 0.125 43);
+
+  --chart-1: oklch(0.545 0.125 43);             /* terracotta */
+  --chart-2: oklch(0.52 0.11 150);              /* sage green */
+  --chart-3: oklch(0.68 0.09 75);               /* warm amber */
+  --chart-4: oklch(0.45 0.07 55);               /* clay brown */
+  --chart-5: oklch(0.75 0.06 90);               /* pale sand */
+
+  --sidebar: oklch(0.985 0.006 85);
+  --sidebar-foreground: oklch(0.27 0.018 55);
+  --sidebar-primary: oklch(0.545 0.125 43);
+  --sidebar-primary-foreground: oklch(0.985 0.006 85);
+  --sidebar-accent: oklch(0.935 0.035 52);
+  --sidebar-accent-foreground: oklch(0.42 0.1 45);
+  --sidebar-border: oklch(0.905 0.012 82);
+  --sidebar-ring: oklch(0.545 0.125 43);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01" on, "cv11" on;
+  }
+  ::selection {
+    background: oklch(0.9 0.05 48);
+  }
+}
+
+/* ---------- shared app utilities ---------- */
+
+.font-display {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+/* thin, calm scrollbars */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.85 0.015 80) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: oklch(0.85 0.015 80);
+  border-radius: 999px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* safe areas for the bottom navigation */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* subtle press feedback for touch targets */
+.press {
+  transition: transform 160ms ease, background-color 160ms ease, opacity 160ms ease;
+}
+.press:active {
+  transform: scale(0.985);
+}
+
+/* gentle shimmer for skeletons */
+@keyframes tara-shimmer {
+  0% { opacity: 0.55; }
+  50% { opacity: 1; }
+  100% { opacity: 0.55; }
+}
+.tara-shimmer {
+  animation: tara-shimmer 1.8s ease-in-out infinite;
+}
+
+/* faint paper grain for hero surfaces — no cosmic gradients */
+.tara-paper {
+  background-image: radial-gradient(oklch(0.9 0.02 80 / 0.5) 0.5px, transparent 0.5px);
+  background-size: 14px 14px;
+}
+
+.tara-hero {
+  background:
+    radial-gradient(120% 120% at 20% 0%, oklch(0.96 0.03 60 / 0.55) 0%, transparent 55%),
+    radial-gradient(120% 100% at 100% 100%, oklch(0.95 0.025 90 / 0.5) 0%, transparent 60%);
+}
+
+/* message bubble tails kept flat & calm */
+.msg-in {
+  animation: msg-in 200ms ease-out;
+}
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}

@@ -1,0 +1,177 @@
+/**
+ * MOCK ENGINE — Vimshottari-style dasha timeline (structure is traditional,
+ * values are demo-grade). Deterministic from the natal Moon position.
+ */
+
+import {
+  DASHA_ORDER,
+  type PlanetName,
+  type DashaPeriod,
+  type DashaSubPeriod,
+  type DashaInfo,
+} from "../types";
+
+const YEAR_MS = 365.2425 * 86400000;
+
+function yearsToMs(years: number): number {
+  return years * YEAR_MS;
+}
+
+interface RawPeriod {
+  lord: PlanetName;
+  startMs: number;
+  endMs: number;
+  parent: PlanetName;
+}
+
+/**
+ * Build the 120-year Vimshottari chain from birth.
+ * @param moonLongitude natal sidereal Moon longitude
+ * @param birthMs birth instant (UTC ms)
+ */
+function buildMahaChain(moonLongitude: number, birthMs: number): RawPeriod[] {
+  const nakIndex = Math.floor(moonLongitude / (360 / 27));
+  const traversed = (moonLongitude % (360 / 27)) / (360 / 27);
+  const birthLordPos = nakIndex % 9;
+  const birthLord = DASHA_ORDER[birthLordPos];
+  const balanceYears = birthLord.years * (1 - traversed);
+
+  const chain: RawPeriod[] = [];
+  let cursor = birthMs;
+  // the partial first mahadasha (balance at birth)
+  chain.push({
+    lord: birthLord.lord,
+    startMs: cursor,
+    endMs: cursor + yearsToMs(balanceYears),
+    parent: birthLord.lord,
+  });
+  cursor += yearsToMs(balanceYears);
+  for (let i = 1; i <= 8; i++) {
+    const { lord, years } = DASHA_ORDER[(birthLordPos + i) % 9];
+    chain.push({ lord, startMs: cursor, endMs: cursor + yearsToMs(years), parent: lord });
+    cursor += yearsToMs(years);
+  }
+  return chain;
+}
+
+/** Antardasha subdivision of a mahadasha (first sub may be partial at birth). */
+function buildAntarChain(maha: RawPeriod, isBirthMaha: boolean): RawPeriod[] {
+  const mahaYears = (maha.endMs - maha.startMs) / YEAR_MS;
+  const mahaPos = DASHA_ORDER.findIndex((d) => d.lord === maha.lord);
+  const out: RawPeriod[] = [];
+  let cursor = maha.startMs;
+  for (let i = 0; i < 9; i++) {
+    const { lord, years } = DASHA_ORDER[(mahaPos + i) % 9];
+    // sub-period span = subYears × mahaYears / 120 (Vimshottari proportion)
+    const span = yearsToMs((years * mahaYears) / 120);
+    out.push({ lord, startMs: cursor, endMs: cursor + span, parent: maha.lord });
+    cursor += span;
+  }
+  void isBirthMaha;
+  // clamp to the mahadasha bounds (rounding + birth-partial cases)
+  if (out.length) out[out.length - 1].endMs = maha.endMs;
+  return out;
+}
+
+/** Pratyantardasha subdivision of an antardasha. */
+function buildPratyantarChain(antar: RawPeriod): RawPeriod[] {
+  const antarYears = (antar.endMs - antar.startMs) / YEAR_MS;
+  const antarPos = DASHA_ORDER.findIndex((d) => d.lord === antar.lord);
+  const out: RawPeriod[] = [];
+  let cursor = antar.startMs;
+  for (let i = 0; i < 9; i++) {
+    const { lord, years } = DASHA_ORDER[(antarPos + i) % 9];
+    // sub-sub span = subYears × antarYears / 120 (same proportion rule)
+    const span = yearsToMs((years * antarYears) / 120);
+    out.push({ lord, startMs: cursor, endMs: cursor + span, parent: antar.lord });
+    cursor += span;
+  }
+  if (out.length) out[out.length - 1].endMs = antar.endMs;
+  return out;
+}
+
+const toPeriod = (p: RawPeriod): DashaPeriod => ({
+  lord: p.lord,
+  start: new Date(p.startMs).toISOString(),
+  end: new Date(p.endMs).toISOString(),
+});
+
+const toSub = (p: RawPeriod): DashaSubPeriod => ({
+  lord: p.lord,
+  start: new Date(p.startMs).toISOString(),
+  end: new Date(p.endMs).toISOString(),
+  parent: p.parent,
+});
+
+// ---------------------------------------------------------------- readings
+
+const LORD_MEANING: Record<PlanetName, string> = {
+  Sun: "identity, confidence and visibility",
+  Moon: "emotions, home and connection",
+  Mars: "energy, courage and direct action",
+  Mercury: "learning, communication and trade",
+  Jupiter: "growth, guidance and expansion",
+  Venus: "comfort, relationships and beauty",
+  Saturn: "structure, patience and long-term effort",
+  Rahu: "ambition, novelty and growth beyond the familiar",
+  Ketu: "reflection, detachment and inner clarity",
+};
+
+const LORD_PHASE_ADVICE: Record<PlanetName, string> = {
+  Sun: "a phase to step up and be seen for your work",
+  Moon: "a phase that favours emotional grounding and close bonds",
+  Mars: "a phase of high drive — channel it into one clear goal",
+  Mercury: "a strong phase for study, negotiation and skill-building",
+  Jupiter: "a phase where learning, mentors and opportunities tend to grow",
+  Venus: "a phase that favours relationships, design and enjoyment",
+  Saturn: "a slow, steady phase — consistency matters more than speed",
+  Rahu: "a restless growth phase — big appetite, needs focus",
+  Ketu: "an inward phase — stepping back can move you forward",
+};
+
+export function buildDasha(
+  moonLongitude: number,
+  birthMs: number,
+  asOf: Date,
+  provider: DashaInfo["provider"]
+): DashaInfo {
+  const now = asOf.getTime();
+  const maha = buildMahaChain(moonLongitude, birthMs);
+  const currentMaha = maha.find((m) => now >= m.startMs && now < m.endMs) ?? maha[maha.length - 1];
+  const antar = buildAntarChain(currentMaha, maha.indexOf(currentMaha) === 0);
+  const currentAntar = antar.find((a) => now >= a.startMs && now < a.endMs) ?? antar[antar.length - 1];
+  const pratyantar = buildPratyantarChain(currentAntar);
+  const currentPraty =
+    pratyantar.find((p) => now >= p.startMs && now < p.endMs) ?? pratyantar[pratyantar.length - 1];
+
+  const timeline = maha.map((m) => {
+    const isActive = m === currentMaha;
+    const progress = isActive
+      ? Math.min(1, Math.max(0, (now - m.startMs) / (m.endMs - m.startMs)))
+      : 0;
+    return { ...toPeriod(m), isActive, progress: Math.round(progress * 1000) / 1000 };
+  });
+
+  const simpleReading = {
+    headline: `You are in a ${currentMaha.lord} phase (${LORD_MEANING[currentMaha.lord]})`,
+    body: `Since ${new Date(currentMaha.startMs).toLocaleDateString("en-IN", { month: "short", year: "numeric" })} your main planetary period is led by ${currentMaha.lord} — traditionally linked to ${LORD_MEANING[currentMaha.lord]}. Within it, the sub-period of ${currentAntar.lord} (${LORD_MEANING[currentAntar.lord]}) runs until ${new Date(currentAntar.endMs).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}. Traditional astrology reads this as ${LORD_PHASE_ADVICE[currentMaha.lord]}.`,
+  };
+
+  return {
+    provider,
+    asOf: asOf.toISOString(),
+    current: {
+      mahadasha: toPeriod(currentMaha),
+      antardasha: toSub(currentAntar),
+      pratyantardasha: toSub(currentPraty),
+    },
+    timeline,
+    antardashas: antar.map((a) => ({ ...toSub(a), isActive: a === currentAntar })),
+    pratyantardashas: pratyantar.map(toSub),
+    simpleReading,
+  };
+}
+
+export function lordMeaning(lord: PlanetName): string {
+  return LORD_MEANING[lord];
+}
