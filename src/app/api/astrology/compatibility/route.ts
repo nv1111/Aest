@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
   const locale = body.locale === "hi" ? "hi" : "en";
   const result = await cached(
-    `compat:${profileA.id}:${profileA.updatedAt.toISOString()}:${profileB.id}:${profileB.updatedAt.toISOString()}:${locale}`,
+    `${provider().info.id}:compat:${profileA.id}:${profileA.updatedAt.toISOString()}:${profileB.id}:${profileB.updatedAt.toISOString()}:${locale}`,
     24 * 3600000,
     () =>
       provider().getCompatibility(

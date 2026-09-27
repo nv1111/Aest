@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   const locale = params.get("locale") === "hi" ? "hi" : "en";
 
   const panchang = await cached(
-    `panchang:${date}:${location.latitude.toFixed(3)}:${location.longitude.toFixed(3)}:${locale}`,
+    `${provider().info.id}:panchang:${date}:${location.latitude.toFixed(3)}:${location.longitude.toFixed(3)}:${locale}`,
     12 * 3600000,
     () => provider().getPanchang(date, location, locale)
   );

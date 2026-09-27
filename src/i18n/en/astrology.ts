@@ -47,6 +47,7 @@ const astrology = {
   legend: "Legend",
   d1: "D1 · Rashi",
   d9: "D9 · Navamsa",
+  d10: "D10 · Career",
   legendHouse: "Circled number = house",
   legendSign: "Small number = rashi (sign)",
   legendRetro: "R = retrograde",

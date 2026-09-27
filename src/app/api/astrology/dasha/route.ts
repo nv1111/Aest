@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const locale = req.nextUrl.searchParams.get("locale") === "hi" ? "hi" : "en";
   const dayKey = new Date().toISOString().slice(0, 10);
   const dasha = await cached(
-    `dasha:${profile.id}:${profile.updatedAt.toISOString()}:${dayKey}:${locale}`,
+    `${provider().info.id}:dasha:${profile.id}:${profile.updatedAt.toISOString()}:${dayKey}:${locale}`,
     6 * 3600000,
     () => provider().getDasha(input, new Date(), locale)
   );

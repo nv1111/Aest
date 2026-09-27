@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const { profile, input } = resolved;
   const locale = req.nextUrl.searchParams.get("locale") === "hi" ? "hi" : "en";
   const chart = await cached(
-    `chart:${profile.id}:${profile.updatedAt.toISOString()}:${locale}`,
+    `${provider().info.id}:chart:${profile.id}:${profile.updatedAt.toISOString()}:${locale}`,
     30 * 86400000,
     () => provider().getBirthChart(input, locale)
   );

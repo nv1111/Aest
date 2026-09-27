@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
           : String(now.getUTCFullYear());
 
   const horoscope = await cached(
-    `horoscope:${profile.id}:${profile.updatedAt.toISOString()}:${parsed.data}:${dateKey}:${locale}`,
+    `${provider().info.id}:horoscope:${profile.id}:${profile.updatedAt.toISOString()}:${parsed.data}:${dateKey}:${locale}`,
     6 * 3600000,
     () => provider().getHoroscope(input, parsed.data, new Date(), locale)
   );

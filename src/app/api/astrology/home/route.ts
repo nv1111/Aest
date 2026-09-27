@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const locale = req.nextUrl.searchParams.get("locale") === "hi" ? "hi" : "en";
   const hourKey = new Date().toISOString().slice(0, 13);
   const home = await cached(
-    `home:${profile.id}:${profile.updatedAt.toISOString()}:${hourKey}:${locale}`,
+    `${provider().info.id}:home:${profile.id}:${profile.updatedAt.toISOString()}:${hourKey}:${locale}`,
     3600000,
     () => provider().getHomeAstrology(input, new Date(), locale)
   );

@@ -1,7 +1,8 @@
 /**
- * MOCK ENGINE — Panchang, Rahu Kaal family, Choghadiya.
- * Sunrise/sunset from the NOAA-style formulas in positions.ts; tithi/nakshatra
- * from approximate Moon/Sun elongation. Demo-grade, deterministic.
+ * Panchang, Rahu Kaal family, Choghadiya — SHARED builder (position-source
+ * agnostic: mock and live engines both feed it through PanchangPositions).
+ * Sunrise/sunset default from the NOAA-style formulas in positions.ts; the
+ * live engine overrides with astronomy-engine event search.
  */
 
 import {
@@ -107,14 +108,65 @@ function part(range: TimeRange, index1: number): TimeRange {
   };
 }
 
+/**
+ * Panchang builder — position-source agnostic. The mock engine feeds its
+ * approximate longitudes; the live engine feeds real ephemeris values.
+ * Tithi/nakshatra end-times are solved from the actual motion of the source.
+ */
+
+export interface PanchangPositions {
+  moonLongitude(date: Date): number;
+  sunLongitude(date: Date): number;
+  solarEvents(
+    dateStr: string,
+    latitude: number,
+    longitudeDeg: number,
+    timezone: string
+  ): { sunriseUTC: Date; sunsetUTC: Date; solarNoonUTC: Date };
+  lunarEvents?(
+    dateStr: string,
+    latitude: number,
+    longitudeDeg: number,
+    timezone: string
+  ): { moonriseUTC: Date | null; moonsetUTC: Date | null };
+}
+
+const mockPositions: PanchangPositions = {
+  moonLongitude: (d) => siderealLongitude("Moon", d),
+  sunLongitude: (d) => siderealLongitude("Sun", d),
+  solarEvents,
+};
+
+const H_MS = 3600000;
+const wrapDiff = (a: number, b: number): number => {
+  let d = a - b;
+  if (d > 180) d -= 360;
+  if (d < -180) d += 360;
+  return d;
+};
+
+/** Solve when fn reaches the next multiple of `span` degrees after startMs (Newton). */
+function nextCrossingMs(fn: (d: Date) => number, span: number, startMs: number): number {
+  const v0 = fn(new Date(startMs));
+  const target = Math.floor(v0 / span) * span + span;
+  const rate = wrapDiff(fn(new Date(startMs + H_MS)), fn(new Date(startMs - H_MS))) / 2; // deg/hour
+  if (!isFinite(rate) || rate <= 0) return startMs + 86400000; // degenerate fallback
+  let t = startMs + ((target - v0) / rate) * H_MS;
+  for (let i = 0; i < 3; i++) {
+    t -= (wrapDiff(fn(new Date(t)), target) / rate) * H_MS;
+  }
+  return t;
+}
+
 export function buildPanchang(
   dateStr: string,
   location: { name: string; latitude: number; longitude: number; timezone: string },
   provider: PanchangData["provider"],
-  locale: "en" | "hi" = "en"
+  locale: "en" | "hi" = "en",
+  positions: PanchangPositions = mockPositions
 ): PanchangData {
   const { latitude, longitude, timezone } = location;
-  const events = solarEvents(dateStr, latitude, longitude, timezone);
+  const events = positions.solarEvents(dateStr, latitude, longitude, timezone);
   const sunrise = toLocalHHMM(events.sunriseUTC, timezone);
   const sunset = toLocalHHMM(events.sunsetUTC, timezone);
   const solarNoon = toLocalHHMM(events.solarNoonUTC, timezone);
@@ -123,9 +175,10 @@ export function buildPanchang(
   const weekday = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(dayStart);
   const weekdayIndex = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday);
 
-  // Moon / Sun state at mid-day (demo approximation)
-  const moon = siderealLongitude("Moon", dayStart);
-  const sun = siderealLongitude("Sun", dayStart);
+  // Panchang convention: tithi/nakshatra state at sunrise
+  const ref = events.sunriseUTC;
+  const moon = positions.moonLongitude(ref);
+  const sun = positions.sunLongitude(ref);
   const elong = norm360(moon - sun);
 
   // Tithi
@@ -134,13 +187,13 @@ export function buildPanchang(
   const within = tithiIndex % 15;
   const tithiName =
     within === 14 ? (isShukla ? "Purnima" : "Amavasya") : `${isShukla ? "Shukla" : "Krishna"} ${TITHI_NAMES[within]}`;
-  const tithiRemainingDeg = 12 - (elong % 12);
-  const tithiEndMs = dayStart.getTime() + (tithiRemainingDeg / 12.19) * 86400000;
+  const elongFn = (d: Date) => norm360(positions.moonLongitude(d) - positions.sunLongitude(d));
+  const tithiEndMs = nextCrossingMs(elongFn, 12, ref.getTime());
 
   // Nakshatra
   const nakIndex = Math.floor(moon / (360 / 27));
-  const nakRemDeg = (360 / 27) - (moon % (360 / 27));
-  const nakEndMs = dayStart.getTime() + (nakRemDeg / 13.176) * 86400000;
+  const moonFn = (d: Date) => positions.moonLongitude(d);
+  const nakEndMs = nextCrossingMs(moonFn, 360 / 27, ref.getTime());
   const pada = Math.floor((moon % (360 / 27)) / (360 / 108)) + 1;
 
   // Yoga & karana
@@ -187,13 +240,21 @@ export function buildPanchang(
     mkSlot(i, hhmmToMinutes(sunset), dayMinutes / 8, nightStartIdx)
   );
 
-  // Moonrise/moonset: elongation-based interpolation (new moon rises with the
-  // sun, full moon rises at sunset) — plausible demo approximation
-  const sunriseMin = hhmmToMinutes(sunrise);
-  const moonriseMin = Math.round(sunriseMin + (elong / 180) * dayMinutes) % 1440;
-  const moonrise = `${String(Math.floor(moonriseMin / 60)).padStart(2, "0")}:${String(moonriseMin % 60).padStart(2, "0")}`;
-  const moonsetMin = (moonriseMin + 720) % 1440;
-  const moonset = `${String(Math.floor(moonsetMin / 60)).padStart(2, "0")}:${String(moonsetMin % 60).padStart(2, "0")}`;
+  // Moonrise/moonset: real event search when the source supports it,
+  // elongation-based interpolation otherwise.
+  let moonrise: string | null;
+  let moonset: string | null;
+  if (positions.lunarEvents) {
+    const le = positions.lunarEvents(dateStr, latitude, longitude, timezone);
+    moonrise = le.moonriseUTC ? toLocalHHMM(le.moonriseUTC, timezone) : null;
+    moonset = le.moonsetUTC ? toLocalHHMM(le.moonsetUTC, timezone) : null;
+  } else {
+    const sunriseMin = hhmmToMinutes(sunrise);
+    const moonriseMin = Math.round(sunriseMin + (elong / 180) * dayMinutes) % 1440;
+    moonrise = `${String(Math.floor(moonriseMin / 60)).padStart(2, "0")}:${String(moonriseMin % 60).padStart(2, "0")}`;
+    const moonsetMin = (moonriseMin + 720) % 1440;
+    moonset = `${String(Math.floor(moonsetMin / 60)).padStart(2, "0")}:${String(moonsetMin % 60).padStart(2, "0")}`;
+  }
 
   const fmtDate = (ms: number) =>
     new Intl.DateTimeFormat(locale === "hi" ? "hi-IN" : "en-IN", {

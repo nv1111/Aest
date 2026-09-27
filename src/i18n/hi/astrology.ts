@@ -47,6 +47,7 @@ const astrology = {
   legend: "चिह्नों का मतलब",
   d1: "D1 · राशि",
   d9: "D9 · नवांश",
+  d10: "D10 · कर्म",
   legendHouse: "गोले में लिखा अंक = भाव",
   legendSign: "छोटा अंक = राशि",
   legendRetro: "R = वक्री",

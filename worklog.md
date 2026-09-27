@@ -470,3 +470,27 @@ Stage Summary:
 - KEY GOTCHA for all future agents: never trust shell DATABASE_URL; prisma CLI uses .env (works); app uses TARA_DATABASE_URL (works); do NOT create files matching .env* except .env itself
 - GitHub: https://github.com/nv1111/Aest (PAT embedded in git remote origin URL locally). Secrets in .env only, never committed
 - Phase 1 (real astronomy-engine integration) is the CURRENT phase per plan
+
+---
+Task ID: 10-phase1
+Agent: main (Z.ai Code)
+Task: Phase 1 — Real Astrology Engine (live ephemeris) — COMPLETE
+
+Work Log:
+- Installed astronomy-engine@2.1.19 (MIT, VSOP87-grade)
+- Created src/lib/astrology/live/: ephemeris.ts (apparent geocentric longitudes via GeoVector→Rotation_EQJ_ECT, Lahiri ayanamsa polynomial, mean lunar nodes, real retrograde via daily motion, proper oblique-sphere ascendant, SearchRiseSet sun/moon events, retrograde-aware sign-entry bisection search) + provider.ts (LiveAstrologyProvider)
+- Refactored mock/panchang.ts buildPanchang into position-source-agnostic builder (PanchangPositions interface; default=mock, live injects real); tithi/nakshatra end-times now Newton-solved from real motion; reference instant = sunrise (panchang convention)
+- types.ts: DivisionalChart id + "D10"; HomeAstrology + provider field
+- provider.ts: real D9 navamsa ((signIndex*9 + n9) % 12 rule) + D10 dashamsa; ChartScreen D1/D9/D10 tabs + i18n d10 keys (en/hi)
+- index.ts: ASTROLOGY_PROVIDER env switch (default live); .env ASTROLOGY_PROVIDER=live
+- All 7 astrology routes: cache keys prefixed with provider().info.id (stale-cache immunity); HomeScreen demo badge now conditional on provider.mode === "mock"
+- VALIDATION HARNESS (live/validate.ts, run: bun src/lib/astrology/live/validate.ts): 19/19 PASS — equinox Sun 0.0003°; solstice 89.9999°; Lahiri J2000 exact + Sep 2026 24.2263 vs 24.2279; India chart lagna Taurus 7°43' EXACT (published), Sun Cancer 27.99, Moon Pushya pada 1; Gandhi (07:11 AM LMT corrected via web research) lagna Libra 4°16' vs published 4°37', Moon Cancer 27°55' Ashlesha vs published 27°45'; Saturn/Rahu/Jupiter current signs match published 2026 transits; dasha 120y-minus-balance + antar tiling; ascendant closed-form vs independent numerical scan Δ0.6' (4 locations)
+- BUGS FOUND & FIXED: (1) solarEvents/lunarEvents searched from midnight−18h → returned PREVIOUS day's sunrise (panchang off by a day) — now rise searched from local midnight, set from local noon; (2) validate passed ms numbers where Dates expected (astronomy-engine treats numbers as Julian days → "Object is too distant"); (3) Gandhi reference birth time was 7:11 AM LMT (+4:39), not PM — corrected via web sources
+- QA (agent-browser): onboarding → live chart; home no DEMO badge + real panchang (Krishna Pratipada, Uttara Bhadrapada pada 4, sunrise 06:11/sunset 18:12 Delhi, Rahu Kaal 16:42–18:12 Sunday ✓); Kundli real positions (Moon 10.0° Pushya p2, Sun 28.4° — motion-consistent); Chart D1/D9/D10 tabs live; Panchang screen real; Hindi Devanagari + live data ✓; dasha consistency across two profiles (Mars vs Rahu maha — both mathematically correct from Pushya balance)
+- tsc: 0 src errors; lint: clean; dev.log: no errors
+
+Stage Summary:
+- ASTROLOGY ENGINE IS NOW REAL: live-engine-v1 default everywhere; mock available via ASTROLOGY_PROVIDER=mock
+- Known characteristic: Supabase ap-northeast-2 pooler ~0.9s RTT from sandbox → API responses ~0.9-1.5s (cache layer absorbs repeats; production/Vercel will be faster)
+- Phase 1 COMPLETE per PLAN.md (all 13 tasks + acceptance). NEXT: Phase 2 — Role-Switch Demo Mode (astrologer + admin consoles in-app, AstrologerAccount model, role guard APIs)
+- validate.ts is the permanent regression harness — run before any engine change

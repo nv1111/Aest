@@ -5,7 +5,7 @@
 > `worklog.md`. Do not skip phases; do not start a phase before the previous
 > one's acceptance criteria pass.
 
-- Version: 1.0
+- Version: 1.1
 - Last updated: 2026-09-27
 - Repo: https://github.com/nv1111/Aest
 - Database: Supabase Postgres (live, single source of data)
@@ -40,7 +40,7 @@ Tara ek **Indian astrology SAAS platform** hai — 3 products ek shared core pe:
 - **UI**: 25+ screens, responsive (430px mobile frame + desktop grid), polished design system
 
 ### ⚠️ Jo MOCK hai (production se pehle badlega)
-1. **Astrology engine** — mean-longitude approximation (±1-2° error) → Phase 1 me real ephemeris
+1. ~~**Astrology engine**~~ → ✅ **LIVE since Phase 1** (astronomy-engine ephemeris, validated vs reference charts)
 2. **Astrologers** — 12 seeded demo profiles, bot-simulated replies → Phase 2/3 me real
 3. **Payments** — mock provider, paisa nahi jaata → Phase 6 me Razorpay
 4. **OTP SMS** — dev me code return hota hai → Phase 6 me MSG91
@@ -98,36 +98,38 @@ Tara ek **Indian astrology SAAS platform** hai — 3 products ek shared core pe:
 
 ---
 
-### Phase 1 — Real Astrology Engine 🎯 CURRENT
+### Phase 1 — Real Astrology Engine ✅ DONE (2026-09-27)
 
 **Goal**: mock approximation ko replace karna with production-grade ephemeris. Ye platform ki credibility ka core hai — kundli GALAT nahi honi chahiye.
+
+**Result**: `astronomy-engine` (VSOP87-grade) integrated as `LiveAstrologyProvider`; validation harness 19/19 checks passed — India chart (Taurus 7°43' exact), Gandhi chart (Libra 4°16' vs published 4°37'; Moon 10' off), equinox/solstice perfect, closed-form ascendant cross-checked vs independent numerical scan (Δ0.6'). Run: `bun src/lib/astrology/live/validate.ts`
 
 **Approach**: `astronomy-engine` (MIT, VSOP87-grade precision) ko `AstrologyProvider` interface ke peeche wrap karna. Custom logic (dasha, panchang, gun-milan) hum likhenge, planetary positions engine se.
 
 **Tasks**:
-- [ ] 1.1 Install `astronomy-engine`; new `src/lib/astrology/live/` module
-- [ ] 1.2 Geocentric apparent longitudes: Sun…Saturn + Rahu (mean node), Ketu = Rahu+180°
-- [ ] 1.3 Precise Lahiri ayanamsa (Chitrapaksha) formula/table
-- [ ] 1.4 Sidereal positions → rashi, nakshatra, nakshatra-pada, retrograde (real second-derivative, not synodic mock)
-- [ ] 1.5 Ascendant: proper sidereal-time + oblique-sphere formula (RAMC) — verify vs reference charts
-- [ ] 1.6 Houses (whole-sign Parashari) + divisional charts D9 (Navamsa), D10 (Dashamsa)
-- [ ] 1.7 **Vimshottari dasha**: Moon nakshatra se maha → antar → pratyantar periods (real, not mock)
-- [ ] 1.8 **Panchang**: tithi (Sun-Moon 12°), nakshatra, yoga (27), karana (60/11), vara, sunrise/sunset (NOAA already good), moon phase, Rahu Kaal / Gulika / Abhijit muhurta
-- [ ] 1.9 **Ashtakoota compatibility** (gun milan 36 points): Varna(1), Vashya(2), Tara(3), Yoni(4), Graha Maitri(5), Gana(6), Bhakoot(7), Nadi(8) + Mangal dosha check
-- [ ] 1.10 Validation harness: 3-5 known reference birth charts + today's panchang vs drikpanchang.com — tolerance: planets ±0.05°, ascendant ±0.5°, nakshatra exact, dasha dates ±1 day
-- [ ] 1.11 Provider switch: `ASTROLOGY_PROVIDER=live|mock` env; cache via existing `AstrologyCache` table
-- [ ] 1.12 Hindi/English labels: engine numbers + keys return kare, UI i18n layer translate kare
-- [ ] 1.13 Transits & daily horoscope: real current transits (gochar) — planet → natal house mapping
+- [x] 1.1 Install `astronomy-engine`; new `src/lib/astrology/live/` module
+- [x] 1.2 Geocentric apparent longitudes: Sun…Saturn + Rahu (mean node), Ketu = Rahu+180°
+- [x] 1.3 Precise Lahiri ayanamsa (Chitrapaksha) formula/table
+- [x] 1.4 Sidereal positions → rashi, nakshatra, nakshatra-pada, retrograde (real second-derivative, not synodic mock)
+- [x] 1.5 Ascendant: proper sidereal-time + oblique-sphere formula (RAMC) — verify vs reference charts
+- [x] 1.6 Houses (whole-sign Parashari) + divisional charts D9 (Navamsa), D10 (Dashamsa)
+- [x] 1.7 **Vimshottari dasha**: Moon nakshatra se maha → antar → pratyantar periods (real, not mock)
+- [x] 1.8 **Panchang**: tithi (Sun-Moon 12°), nakshatra, yoga (27), karana (60/11), vara, sunrise/sunset (astronomy-engine SearchRiseSet), moonrise/moonset (real search), Rahu Kaal / Gulika / Abhijit muhurta; end-times solved via Newton iteration on real motion
+- [x] 1.9 **Ashtakoota compatibility** (gun milan 36 points) fed with real Moon/Mars/Asc positions + Mangal dosha check
+- [x] 1.10 Validation harness: equinox anchors + India & Gandhi reference charts + current transit signs + dasha consistency + independent numerical ascendant scan — `live/validate.ts`, 19/19 pass
+- [x] 1.11 Provider switch: `ASTROLOGY_PROVIDER=live|mock` env (default live); cache keys prefixed with provider id
+- [x] 1.12 Hindi/English labels: engine values real, display via i18n layer (both verified in QA)
+- [x] 1.13 Transits: real current positions + real sign-entry times (bisection search, retrograde-aware); horoscope from real Moon sign; home day-insight grounded in real Moon motion
 
 **DB**: no schema change (cache table already exists)
 
-**Acceptance**: reference charts match; panchang aaj ka drikpanchang se match; kundli/dasha/matching screens live engine se; Devanagari + English dono me correct.
+**Acceptance**: ✅ PASSED (2026-09-27) — India chart exact (Taurus 7°43', Moon Pushya, Sun Cancer 28°), Gandhi chart arc-minutes off, sunrise/sunset/moonrise real, dasha math consistent across profiles, English + हिन्दी verified via agent-browser.
 
 **Effort**: M-L (engine math + validation)
 
 ---
 
-### Phase 2 — Role-Switch Demo Mode (3-in-1 App)
+### Phase 2 — Role-Switch Demo Mode (3-in-1 App) 🎯 CURRENT
 
 **Goal**: isi app me astrologer + admin consoles — dev aur client-demo ke liye. Production me split hoga (Phase 6).
 

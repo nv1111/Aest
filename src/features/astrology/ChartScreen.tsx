@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/sheet";
 import { HOUSE_THEMES, SIGN_LORDS, SIGN_SANSKRIT, type BirthChart } from "@/lib/astrology/types";
 
-type Variant = "D1" | "D9";
+type Variant = "D1" | "D9" | "D10";
 
 /** Kundli chart — North Indian diamond (D1 Rashi / D9 Navamsa), tappable houses. */
 export default function ChartScreen() {
@@ -102,6 +102,7 @@ export default function ChartScreen() {
             options={[
               { value: "D1", label: t("astrology.d1") },
               { value: "D9", label: t("astrology.d9") },
+              { value: "D10", label: t("astrology.d10") },
             ]}
           />
 

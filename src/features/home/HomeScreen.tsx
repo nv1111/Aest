@@ -106,7 +106,9 @@ export function HomeScreen() {
       >
         {/* ------------------------------------------------ YOUR DAY */}
         <section aria-label={t("home.yourDay")} className="xl:col-span-2">
-          <SectionHeader action={<DemoDataBadge />}>{t("home.yourDay")}</SectionHeader>
+          <SectionHeader action={home.data?.provider?.mode === "mock" ? <DemoDataBadge /> : undefined}>
+            {t("home.yourDay")}
+          </SectionHeader>
           {home.isLoading || !home.data ? (
             <Skeleton className="h-44 w-full rounded-3xl" />
           ) : home.isError ? (

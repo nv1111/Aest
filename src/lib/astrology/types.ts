@@ -205,7 +205,7 @@ export interface AscendantInfo {
 }
 
 export interface DivisionalChart {
-  id: "D1" | "D9";
+  id: "D1" | "D9" | "D10";
   name: string;
   description: string;
   houses: { house: number; sign: SignName; planets: PlanetName[] }[];
@@ -371,6 +371,7 @@ export interface DayInsight {
 }
 
 export interface HomeAstrology {
+  provider: ProviderInfo;
   insight: DayInsight;
   today: {
     tithi: string;
