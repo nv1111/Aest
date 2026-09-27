@@ -242,6 +242,9 @@ export function ProfileScreen() {
         <p className="pb-2 text-center text-[11px] text-muted-foreground/70">
           {t("common.appName")} · {t("common.tagline")}
         </p>
+        <p className="pb-2 text-center text-[11px] text-muted-foreground/60">
+          {t("profile.dataCredits")}
+        </p>
         </div>
       </div>
     </div>

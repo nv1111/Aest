@@ -164,6 +164,7 @@ const profile = {
   deleteAccountCancel: "Keep my account",
   deleting: "Deleting your account…",
   credits: "Credits",
+  dataCredits: "Place data © GeoNames (CC BY 4.0) · Map tiles © OpenStreetMap contributors",
 };
 
 export default profile;

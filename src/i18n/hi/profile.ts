@@ -164,6 +164,7 @@ const profile = {
   deleteAccountCancel: "खाता रहने दें",
   deleting: "आपका खाता हटाया जा रहा है…",
   credits: "क्रेडिट्स",
+  dataCredits: "स्थान डेटा © GeoNames (CC BY 4.0) · नक्शा © OpenStreetMap contributors",
 };
 
 export default profile;

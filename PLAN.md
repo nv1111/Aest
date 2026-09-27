@@ -129,6 +129,25 @@ Tara ek **Indian astrology SAAS platform** hai — 3 products ek shared core pe:
 
 ---
 
+### Phase 1.5 — Real Geocoding (Birth-Place Coverage) ✅ DONE (2026-09-27)
+
+**Goal**: har customer ka birth place exact — sirf badi cities nahi. India ke villages + puri duniya. User approved option 1 (free self-hosted stack).
+
+**Solution (self-hosted, ₹0 ongoing, no API keys)**:
+- **GeoNames CC BY 4.0** dump self-hosted in Supabase: `GeoPlace` model (786,264 rows — India full P-class 5.58 lakh villages/towns/cities + world cities ≥500 pop 2.29 lakh) + `pg_trgm` GIN index on `searchText`; India-2+world-3-char trigram search ~250-450ms (pooler RTT-bound), static fallback on DB failure
+- **Map picker**: Leaflet + OpenStreetMap tiles (free, no key) — any point on Earth; nearest GeoPlace resolved server-side (`/api/astrology/places/near`) → readable label + **IANA timezone** (auto, editable dropdown)
+- **Manual coordinates** modal: lat/lng + tz + nearest suggestion (Google Maps se copy-paste crowd)
+- **Hindi/Devanagari search**: 8,970 rows with Hindi alt names (दिल्ली/मुंबई ✓) — limitation: GeoNames Hindi coverage is town-level only, villages are romanized (future: transliteration matching)
+- District/state disambiguation in results (duplicate village names across India)
+
+**Files**: `prisma/schema.prisma` (GeoPlace), `db/geonames-import.ts` (idempotent import; data at /home/z/geodata — OUTSIDE project dir, Turbopack OOM fix), `src/lib/geo/places.ts`, `src/app/api/astrology/places/{route,near/route}.ts`, `src/features/onboarding/{PlaceSearch,MapPickerModal}.tsx`, i18n en/hi, profile attribution footer (CC BY 4.0 compliance)
+
+**Acceptance**: ✅ agent-browser QA — village "Bisrakh, Gautam Buddha Nagar, UP" found; map pin → nearest "Noida (0.3 km)" + tz auto; NYC manual coords → "New York City · America/New_York" (USA customer case); Hindi UI ✓; VLM screenshot check (real tiles + pin) ✓
+
+**Key gotcha**: NEVER keep 100MB+ data files inside the project dir — Turbopack watches them → 3GB RSS → OOM-killed dev server repeatedly. Data lives at /home/z/geodata now.
+
+---
+
 ### Phase 2 — Role-Switch Demo Mode (3-in-1 App) 🎯 CURRENT
 
 **Goal**: isi app me astrologer + admin consoles — dev aur client-demo ke liye. Production me split hoga (Phase 6).

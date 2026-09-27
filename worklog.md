@@ -494,3 +494,27 @@ Stage Summary:
 - Known characteristic: Supabase ap-northeast-2 pooler ~0.9s RTT from sandbox → API responses ~0.9-1.5s (cache layer absorbs repeats; production/Vercel will be faster)
 - Phase 1 COMPLETE per PLAN.md (all 13 tasks + acceptance). NEXT: Phase 2 — Role-Switch Demo Mode (astrologer + admin consoles in-app, AstrologerAccount model, role guard APIs)
 - validate.ts is the permanent regression harness — run before any engine change
+
+---
+Task ID: 11-geocoding
+Agent: main (Z.ai Code)
+Task: Phase 1.5 — Real Geocoding (GeoNames self-hosted + Map picker + Manual coords) — user approved option 1 with world-coverage requirement
+
+Work Log:
+- User question: "sirf badi cities — village nahi milta, poora world chahiye (USA customer bhi aa sakta hai)". Recommended + implemented the free self-hosted stack
+- Downloaded GeoNames dumps to /home/z/geodata (MOVED OUT of project dir — critical!): IN.txt (660k rows → 557,995 P-class), cities500.txt (235,879 world cities → 228,764 ex-India), countryInfo, admin1CodesASCII, admin2Codes (district names)
+- prisma/schema.prisma: new GeoPlace model (geonameId unique, name/ascii/altNamesHi/searchText, country+admin1+admin2 names, population, lat/lng, IANA timezone); db push
+- db/geonames-import.ts (idempotent, bun): 786,264 rows inserted in 2000-row batches (ON CONFLICT DO NOTHING); created pg_trgm extension + GIN index on searchText; total table 241MB (fits Supabase free tier; dropped countryCode/population indexes to save space)
+- Hindi pass (--hindi flag): alternateNames v2 format fix (col0=alternatenameid, col1=geonameid, col2=lang — first attempt got 0 rows); sources = hi-lines.txt (rg pre-filter, 9,484 ids) + Devanagari tokens in IN.txt/cities500 col4 (13,237 tokens); 8,970 rows updated → दिल्ली/मुंबई Devanagari search works
+- Backend: src/lib/geo/places.ts (searchGeoPlaces trigram ranked exact→prefix→population; nearestGeoPlace haversine + bbox); /api/astrology/places upgraded (3+ chars DB GIN fast path, <3 chars static instant, static fallback on DB error — same Place response shape, zero breakage for 3 consumers); NEW /api/astrology/places/near (nearest place + distanceKm for map pins)
+- Frontend: PlaceSearch dropdown footer with 2 fallback CTAs (Select on map / Enter coordinates) + i18n wired (was hardcoded English); NEW MapPickerModal (Leaflet+OSM dynamic import, divIcon pin, click→pin→debounced nearest lookup→auto timezone, name+tz editable, confirm); NEW ManualCoordsModal (lat/lng validation, nearest suggestion, full Intl.supportedValuesOf timezone dropdown); state inside DialogContent children (Radix unmount = fresh state, no reset effects — react-hooks/set-state-in-effect clean)
+- CC BY 4.0 compliance: attribution line in Profile footer ("Place data © GeoNames · Map tiles © OpenStreetMap") en/hi
+- BUGS FOUND & FIXED: (1) Turbopack OOM-killed dev server 3× (3GB RSS, 24GB VM watching 747MB alternateNames.txt in project dir) → moved data to /home/z/geodata, deleted huge files after import; (2) Turbopack cache panic "Failed to restore task data" → rm -rf .next; (3) alternateNames v2 column shift; (4) SQL template `%` literal quoting bug in first route draft
+- QA (agent-browser via localhost:81, user "Aarav" Hindi session): village search "bisrakh" → "Bisrakh, Gautam Buddha Nagar, Uttar Pradesh, India" with map/coords CTAs in Hindi ✓; select fills field ✓; map modal opens (Leaflet zoom/attribution) ✓; pin drop → nearest "Noida, Gautam Buddha Nagar (0.3 km)" + tz auto ✓; confirm → field "Noida, Gautam Buddha Nagar, Uttar Pradesh" ✓; manual coords 40.7128,-74.0060 → "नज़दीक New York City · America/New_York" (USA case) ✓; VLM screenshot check: real OSM tiles + red pin + form visible ✓; no browser/page errors; lint clean; tsc 0 src errors; dev server stable after OOM fix
+
+Stage Summary:
+- BIRTH-PLACE COVERAGE SOLVED: 786,264 places (5.58 lakh India villages/towns + 2.29 lakh world cities) + map-pin (any point on Earth) + manual coords. USA/foreign customers fully covered incl. timezone
+- GeoPlace search: ~250-450ms via pooler (production/Vercel will be faster); static list retained as fallback
+- Known limitations: GeoNames Hindi names are town-level (~9k) — village names searchable in Latin only (transliteration matching = future idea); world villages <500 pop → use map pin
+- NEXT: Phase 2 — Role-Switch Demo Mode (PLAN.md §Phase 2, tasks 2.1+)
+- Ops note: geodata re-import possible via `bun db/geonames-import.ts [--hindi]` (reads /home/z/geodata)

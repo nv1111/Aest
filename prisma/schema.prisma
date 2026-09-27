@@ -329,3 +329,32 @@ model SupportTicket {
 
   @@index([userId])
 }
+
+// ------------------------------------------------------------------ geocoding
+// Phase 1.5 — self-hosted GeoNames (CC BY 4.0, credit shown in About/footer).
+// India: full P-class (~5.58 lakh villages/towns/cities). World: all places
+// with population ≥ 500 (~2.29 lakh). Covers every customer, any country.
+// searchText = lower(name + asciiName + Hindi alt names) — trigram-indexed.
+
+model GeoPlace {
+  id          Int      @id @default(autoincrement())
+  geonameId   Int      @unique
+  name        String
+  asciiName   String?
+  altNamesHi  String? // Hindi alternate names, " | " joined (bilingual search)
+  searchText  String
+  countryCode String
+  countryName String?
+  admin1      String? // GeoNames admin1 code (state)
+  admin1Name  String?
+  admin2      String? // GeoNames admin2 code (district)
+  admin2Name  String?
+  featureCode String // PPL | PPLA2 | PPLC…
+  population  Int      @default(0)
+  latitude    Float
+  longitude   Float
+  timezone    String // IANA id, e.g. Asia/Kolkata / America/New_York
+  createdAt   DateTime @default(now())
+
+  @@index([latitude, longitude])
+}

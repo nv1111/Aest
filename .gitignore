@@ -61,3 +61,4 @@ shots/
 tool-results/
 tests/
 .zscripts/
+db/geodata/
