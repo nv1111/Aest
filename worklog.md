@@ -448,3 +448,25 @@ Stage Summary:
 - NOT yet localized (English stays): report CONTENT bodies (generated server-side by builder.ts — next candidate), notifications DB content, chat-service astrologer auto-replies, ProviderInfo disclaimer label.
 - Risks: none known; mobile 430px frame untouched throughout (verified 390px screenshots).
 - Recommended next: (1) locale-aware report generation (builder.ts takes locale — moderate), (2) chat-service (3003) Hindi astrologer replies, (3) email auth, (4) notifications content localization, (5) Panchang date navigation.
+
+---
+Task ID: 9-plan-infra
+Agent: main (Z.ai Code)
+Task: Master plan (PLAN.md) + Supabase Postgres migration + GitHub backup push
+
+Work Log:
+- Answered user's architecture questions (mock vs real engine, 3-project SAAS, backend status)
+- Wrote /home/z/my-project/PLAN.md — phased roadmap (Phase 0 infra DONE, Phase 1 real engine CURRENT, Phase 2 role-switch demo, Phase 3 astrologer full, Phase 4 pooja module, Phase 5 super admin, Phase 6 production split + Razorpay/MSG91/DPDP) with per-phase tasks/DB/API/acceptance criteria
+- Supabase migration: prisma/schema.prisma provider sqlite→postgresql + directUrl; bunx prisma db push (20 models created on Supabase); bun db/seed.ts (12 astrologers + reviews)
+- Found & fixed env landmine: sandbox shell re-injects stale sqlite DATABASE_URL every new Bash command; Bun doesn't override shell env with .env → app was reading sqlite URL. Fix: TARA_DATABASE_URL (set in .env) takes precedence in src/lib/db.ts via datasourceUrl. Seed + runtime now immune
+- Moved SQLite artifacts to backups/ (custom.db, old .env, old schema) — .env* pattern se bahar (Bun loads all .env* files!)
+- Restarted dev server; E2E verified on Supabase: OTP login (9876543210) → user created → /api/astrologers returns 12 seeded → /api/astrology/home correct no_profile guard
+- Git: untracked .env (was committed by platform checkpoints — old content had NO secrets, verified); .gitignore hardened (backups/, db/*.db, download/, shots/, tool-results/, tests/, .zscripts/); README.md; commit "Phase 0 complete"; pushed to github.com/nv1111/Aest main (remote was empty, clean push)
+- 15-min webDevReview cron re-enabled
+
+Stage Summary:
+- DATABASE IS NOW LIVE SUPABASE POSTGRES (sckgziqyxwswxywaxpza, ap-northeast-2 pooler). SQLite removed from runtime (backup in backups/)
+- ROADMAP SINGLE SOURCE OF TRUTH: PLAN.md — next agents MUST read PLAN.md first, execute Phase 1 (real astrology engine) top-to-bottom
+- KEY GOTCHA for all future agents: never trust shell DATABASE_URL; prisma CLI uses .env (works); app uses TARA_DATABASE_URL (works); do NOT create files matching .env* except .env itself
+- GitHub: https://github.com/nv1111/Aest (PAT embedded in git remote origin URL locally). Secrets in .env only, never committed
+- Phase 1 (real astronomy-engine integration) is the CURRENT phase per plan
