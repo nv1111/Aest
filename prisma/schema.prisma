@@ -1,14 +1,17 @@
 // Tara — customer-side jyotish platform. Single source of truth for data.
 // Conventions: UUID ids, createdAt/updatedAt everywhere, JSON stored as String
-// (SQLite has no arrays/objects), money as Float (INR), birth dates as ISO strings.
+// (kept as String for code compatibility; may move to Json/arrays later),
+// money as Float (INR), birth dates as ISO strings.
+// Database: Supabase Postgres (single live database) via Prisma.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // transaction-mode pooler (runtime)
+  directUrl = env("DIRECT_URL")   // session-mode pooler (migrations / db push)
 }
 
 // ---------------------------------------------------------------- auth & users
