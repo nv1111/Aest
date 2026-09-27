@@ -9,6 +9,7 @@ import { db } from "../src/lib/db";
 
 interface SeedAstrologer {
   slug: string;
+  kycStatus?: "pending" | "approved" | "rejected" | "suspended";
   displayName: string;
   photo: string;
   gender: string;
@@ -101,6 +102,7 @@ const ASTROLOGERS: SeedAstrologer[] = [
   },
   {
     slug: "vikram-bhatnagar",
+    kycStatus: "pending",
     displayName: "Vikram Bhatnagar",
     photo: "/avatars/ast-05.png",
     gender: "male",
@@ -174,6 +176,7 @@ const ASTROLOGERS: SeedAstrologer[] = [
   },
   {
     slug: "savitri-devi",
+    kycStatus: "suspended",
     displayName: "Savitri Devi",
     photo: "/avatars/ast-09.png",
     gender: "female",
@@ -211,6 +214,7 @@ const ASTROLOGERS: SeedAstrologer[] = [
   },
   {
     slug: "prof-harish-chandra",
+    kycStatus: "pending",
     displayName: "Prof. Harish Chandra",
     photo: "/avatars/ast-11.png",
     gender: "male",
@@ -230,6 +234,7 @@ const ASTROLOGERS: SeedAstrologer[] = [
   },
   {
     slug: "meera-joshi",
+    kycStatus: "pending",
     displayName: "Meera Joshi",
     photo: "/avatars/ast-12.png",
     gender: "female",
@@ -282,7 +287,8 @@ async function main() {
       reviewCount: a.reviewCount,
       consultationCount: a.consultationCount,
       pricePerMinute: a.pricePerMinute,
-      isVerified: a.isVerified,
+      isVerified: a.isVerified && (a.kycStatus ?? "approved") === "approved",
+      kycStatus: a.kycStatus ?? (a.isVerified ? "approved" : "pending"),
       onlineStatus: a.onlineStatus,
       availableFrom: a.availableFromHours ? new Date(Date.now() + a.availableFromHours * 3600000) : null,
       about: a.about,

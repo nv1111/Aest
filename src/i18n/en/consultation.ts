@@ -22,6 +22,12 @@ const consultation = {
 
   // chat
   chatTitle: "Consultation",
+  waitingAccept: "Waiting for {name} to accept…",
+  waitingNote: "You're not billed until {name} accepts.",
+  requestDeclinedTitle: "Request declined",
+  requestDeclinedBody: "{name} couldn't take this request. You were not charged anything.",
+  requestDeclinedBack: "Go back",
+  acceptedToast: "{name} accepted — the consultation is live.",
   demoAstrologer: "Demo astrologer — AI-simulated replies",
   typeMessage: "Type your message…",
   send: "Send",

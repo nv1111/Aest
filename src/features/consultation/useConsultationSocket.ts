@@ -24,6 +24,8 @@ export interface ConsultationSocketHandlers {
   /** the astrologer read the user's messages (double ticks) */
   onRead?: (readAt: string) => void;
   onEnded?: (consultationId: string) => void;
+  /** status transitions: requested → active / cancelled / ended (Phase 2) */
+  onStatus?: (status: string) => void;
 }
 
 interface RoomMessageEvent {
@@ -40,6 +42,10 @@ interface RoomReadEvent {
 }
 interface RoomEndedEvent {
   consultationId?: string;
+}
+interface RoomStatusEvent {
+  consultationId?: string;
+  status?: string;
 }
 
 export function useConsultationSocket(
@@ -119,18 +125,27 @@ export function useConsultationSocket(
     });
 
     socket.on("consultation:typing", (payload: RoomTypingEvent) => {
-      if (!matches(payload) || payload.userId !== "astrologer") return;
+      // other party = anyone who isn't me: the server-side bot emits with
+      // userId "astrologer"; the Phase 2 console persona emits with its own
+      // userId. Both must show as "the astrologer is typing".
+      if (!matches(payload) || !payload.userId || payload.userId === userId) return;
       handlersRef.current.onTyping?.(payload.isTyping === true);
     });
 
     socket.on("consultation:read", (payload: RoomReadEvent) => {
-      if (payload?.userId !== "astrologer" || typeof payload.readAt !== "string") return;
+      if (!payload.userId || payload.userId === userId) return;
+      if (typeof payload.readAt !== "string") return;
       handlersRef.current.onRead?.(payload.readAt);
     });
 
     socket.on("consultation:ended", (payload: RoomEndedEvent) => {
       if (!matches(payload)) return;
       handlersRef.current.onEnded?.(consultationId);
+    });
+
+    socket.on("consultation:status", (payload: RoomStatusEvent) => {
+      if (!matches(payload) || typeof payload.status !== "string") return;
+      handlersRef.current.onStatus?.(payload.status);
     });
 
     return () => {

@@ -8,7 +8,23 @@ export interface UserDTO {
   avatarUrl: string | null;
   language: string;
   onboardingDone: boolean;
+  /** Real account type: user | astrologer | admin. */
+  role: string;
+  /** Active role-switch demo view: null | "astrologer" | "admin". */
+  demoPersona: string | null;
   createdAt: string;
+}
+
+/** Linked astrologer profile for the role-switch "astrologer" persona. */
+export interface MeAstrologerAccountDTO {
+  astrologerId: string;
+  displayName: string;
+  slug: string;
+  photoUrl: string | null;
+  onlineStatus: string;
+  pricePerMinute: number;
+  rating: number;
+  manualMode: boolean;
 }
 
 export type TimeAccuracyDTO = "exact" | "approximate" | "unknown";
@@ -42,6 +58,7 @@ export interface MeDTO {
   primaryProfile: BirthProfileDTO | null;
   wallet: WalletDTO;
   unreadCount: number;
+  astrologerAccount: MeAstrologerAccountDTO | null;
 }
 
 export interface OtpRequestDTO {
@@ -63,6 +80,7 @@ export interface AstrologerDTO {
   consultationCount: number;
   pricePerMinute: number;
   isVerified: boolean;
+  kycStatus: string;
   onlineStatus: "online" | "away" | "offline";
   availableFrom: string | null;
   about: string;

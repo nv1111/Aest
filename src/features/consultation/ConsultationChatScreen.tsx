@@ -97,6 +97,9 @@ export default function ConsultationChatScreen() {
   const [backOpen, setBackOpen] = useState(false);
   const [insufficientOpen, setInsufficientOpen] = useState(false);
   const [ending, setEnding] = useState(false);
+  /** Phase 2 requested-lifecycle: declined (cancelled) local view */
+  const [declined, setDeclined] = useState(false);
+  const acceptedToastRef = useRef(false);
 
   const query = useQuery({
     queryKey: ["consultation", id],
@@ -107,6 +110,8 @@ export default function ConsultationChatScreen() {
   const consultation = query.data?.consultation;
   const serverMessages: MessageDTO[] = useMemo(() => query.data?.messages ?? [], [query.data]);
   const isActive = consultation?.status === "active";
+  const isRequested = consultation?.status === "requested";
+  const isCancelled = consultation?.status === "cancelled" || declined;
   const rate = consultation?.ratePerMinute ?? 0;
   const balance = me.data?.wallet.balance ?? 0;
 
@@ -149,10 +154,12 @@ export default function ConsultationChatScreen() {
   );
 
   // ------------------------------------------------------------- realtime
+  // socket stays live while the request is PENDING too — the accept/decline
+  // status event (and the greeting + billing system messages) arrive here.
   const { status } = useConsultationSocket(
     id,
     me.data?.user.id,
-    !!id && !!me.data?.user.id && (isActive ?? false),
+    !!id && !!me.data?.user.id && (isActive || isRequested),
     {
       onMessage: (m) => {
         appendMessage(m);
@@ -166,6 +173,28 @@ export default function ConsultationChatScreen() {
         void qc.invalidateQueries({ queryKey: ["consultation", id] });
         void qc.invalidateQueries({ queryKey: ["me"] });
         void qc.invalidateQueries({ queryKey: ["consultations"] });
+      },
+      onStatus: (next) => {
+        if (next === "active") {
+          if (!acceptedToastRef.current) {
+            acceptedToastRef.current = true;
+            toast.success(
+              t("consultation.acceptedToast", {
+                name: query.data?.consultation?.astrologer.displayName ?? "",
+              })
+            );
+          }
+          // greeting + billing system messages also arrive via onMessage —
+          // the refetch reconciles ids (dedupe) and the status fields.
+          void query.refetch();
+        } else if (next === "cancelled") {
+          setDeclined(true);
+          void qc.invalidateQueries({ queryKey: ["consultations"] });
+        } else if (next === "ended") {
+          void qc.invalidateQueries({ queryKey: ["consultation", id] });
+          void qc.invalidateQueries({ queryKey: ["me"] });
+          void qc.invalidateQueries({ queryKey: ["consultations"] });
+        }
       },
     }
   );
@@ -218,6 +247,9 @@ export default function ConsultationChatScreen() {
         if (err instanceof ApiError && err.code === "insufficient_balance") {
           setInsufficientOpen(true);
           void qc.invalidateQueries({ queryKey: ["me"] });
+        } else if (err instanceof ApiError && err.code === "not_accepted") {
+          // request still pending — keep the muted composer + waiting banner,
+          // no error toast spam (the message stays retryable)
         } else {
           toast.error(errorMessage(err));
         }
@@ -239,6 +271,8 @@ export default function ConsultationChatScreen() {
         if (err instanceof ApiError && err.code === "insufficient_balance") {
           setInsufficientOpen(true);
           void qc.invalidateQueries({ queryKey: ["me"] });
+        } else if (err instanceof ApiError && err.code === "not_accepted") {
+          // still waiting for acceptance — quiet
         } else {
           toast.error(errorMessage(err));
         }
@@ -366,34 +400,58 @@ export default function ConsultationChatScreen() {
         </div>
 
         {/* -------------------------------------------------- billing meter */}
-        <div className="border-t border-warning/30 bg-warning/10 px-4 py-2.5" aria-live="off">
-          <div className="mx-auto flex w-full items-center justify-between gap-3 text-[12.5px] md:max-w-xl md:px-6 lg:max-w-[760px]">
-            <span className="text-muted-foreground">
-              {t("consultation.runningDuration")}{" "}
-              <span className="font-semibold tabular-nums text-foreground">{mmss(elapsedSec)}</span>
-            </span>
-            <span className="text-muted-foreground">
-              {t("consultation.runningCharge")}{" "}
-              <span className="font-semibold text-foreground">
-                {isActive ? "≈ " : ""}
-                {formatINR(isActive ? runningCharge : consultation.totalAmount ?? 0)}
+        {isRequested ? (
+          <div className="border-t border-primary/25 bg-primary/6 px-4 py-2.5" aria-live="polite">
+            <div className="mx-auto flex w-full items-center gap-2 text-[12.5px] md:max-w-xl md:px-6 lg:max-w-[760px]">
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-foreground/85">
+                {t("consultation.waitingAccept", { name: a.displayName })}
               </span>
-            </span>
-            <span className="inline-flex items-center gap-1 text-muted-foreground">
-              <Wallet className="h-3.5 w-3.5" aria-hidden />
-              {formatINR(balance)}
-            </span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-muted-foreground">
+                <Wallet className="h-3.5 w-3.5" aria-hidden />
+                {formatINR(balance)}
+              </span>
+            </div>
+            <p className="mx-auto mt-0.5 w-full text-[10.5px] leading-snug text-muted-foreground md:max-w-xl md:px-6 lg:max-w-[760px]">
+              {t("consultation.waitingNote", { name: a.displayName })}
+            </p>
           </div>
-          <p className="mx-auto mt-0.5 w-full text-[10.5px] leading-snug text-muted-foreground md:max-w-xl md:px-6 lg:max-w-[760px]">
-            {isActive
-              ? t("consultation.approxNote")
-              : `${t("consultation.ended")} — ${formatINR(consultation.totalAmount ?? 0)}`}
-          </p>
-        </div>
+        ) : isCancelled ? (
+          <div className="border-t border-hairline bg-secondary/50 px-4 py-2.5">
+            <p className="mx-auto w-full text-[12px] text-muted-foreground md:max-w-xl md:px-6 lg:max-w-[760px]">
+              {t("consultation.noCharge")}
+            </p>
+          </div>
+        ) : (
+          <div className="border-t border-warning/30 bg-warning/10 px-4 py-2.5" aria-live="off">
+            <div className="mx-auto flex w-full items-center justify-between gap-3 text-[12.5px] md:max-w-xl md:px-6 lg:max-w-[760px]">
+              <span className="text-muted-foreground">
+                {t("consultation.runningDuration")}{" "}
+                <span className="font-semibold tabular-nums text-foreground">{mmss(elapsedSec)}</span>
+              </span>
+              <span className="text-muted-foreground">
+                {t("consultation.runningCharge")}{" "}
+                <span className="font-semibold text-foreground">
+                  {isActive ? "≈ " : ""}
+                  {formatINR(isActive ? runningCharge : consultation.totalAmount ?? 0)}
+                </span>
+              </span>
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                <Wallet className="h-3.5 w-3.5" aria-hidden />
+                {formatINR(balance)}
+              </span>
+            </div>
+            <p className="mx-auto mt-0.5 w-full text-[10.5px] leading-snug text-muted-foreground md:max-w-xl md:px-6 lg:max-w-[760px]">
+              {isActive
+                ? t("consultation.approxNote")
+                : `${t("consultation.ended")} — ${formatINR(consultation.totalAmount ?? 0)}`}
+            </p>
+          </div>
+        )}
 
         {/* --------------------------------------------- connection / ended */}
         <div className="mx-auto flex w-full items-center justify-between gap-2 px-4 py-1.5 text-[11.5px] md:max-w-xl md:px-6 lg:max-w-[760px]">
-          <ConnectionChip status={isActive ? status : "offline"} />
+          <ConnectionChip status={isActive ? status : isRequested ? "connecting" : "offline"} />
           {!isActive ? (
             <button
               type="button"
@@ -419,7 +477,29 @@ export default function ConsultationChatScreen() {
         aria-label={t("consultation.chatTitle")}
       >
         <div className="mx-auto w-full md:max-w-xl md:px-6 lg:max-w-[760px]">
-        {!isActive ? (
+        {isRequested ? (
+          <div className="mx-auto mb-3 flex max-w-[85%] items-center justify-center gap-2 rounded-xl bg-secondary px-3 py-2 text-center text-[12px] text-secondary-foreground">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+            {t("consultation.waitingAccept", { name: a.displayName })}
+          </div>
+        ) : null}
+        {isCancelled ? (
+          <div className="mx-auto mb-3 max-w-[92%] rounded-2xl border border-warning/40 bg-warning/10 p-4 text-center">
+            <p className="text-[13.5px] font-semibold text-foreground">
+              {t("consultation.requestDeclinedTitle")}
+            </p>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">
+              {t("consultation.requestDeclinedBody", { name: a.displayName })}
+            </p>
+            <Button
+              variant="outline"
+              className="mt-3 h-10 rounded-full px-6 press"
+              onClick={pop}
+            >
+              {t("consultation.requestDeclinedBack")}
+            </Button>
+          </div>
+        ) : !isActive ? (
           <div className="mx-auto mb-3 max-w-[85%] rounded-xl bg-secondary px-3 py-2 text-center text-[12px] text-secondary-foreground">
             {t("consultation.endedBanner")}
           </div>
@@ -437,8 +517,8 @@ export default function ConsultationChatScreen() {
       </div>
 
       {/* ------------------------------------------------------------ input */}
-      {isActive ? (
-        <div className="shrink-0 border-t bg-background px-3 py-2.5">
+      {isActive || isRequested ? (
+        <div className="shrink-0 border-t bg-background px-3 py-2.5 mb-[calc(88px+env(safe-area-inset-bottom))] md:mb-0">
           <form
             className="mx-auto flex w-full items-end gap-2 md:max-w-xl md:px-6 lg:max-w-[760px]"
             onSubmit={(e) => {
@@ -448,6 +528,7 @@ export default function ConsultationChatScreen() {
           >
             <Textarea
               value={draft}
+              disabled={isRequested}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -455,16 +536,20 @@ export default function ConsultationChatScreen() {
                   void sendMessage(draft);
                 }
               }}
-              placeholder={t("consultation.typeMessage")}
+              placeholder={
+                isRequested
+                  ? t("consultation.waitingAccept", { name: a.displayName })
+                  : t("consultation.typeMessage")
+              }
               aria-label={t("consultation.typeMessage")}
               rows={1}
-              className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl bg-card py-2.5 text-[13.5px]"
+              className="max-h-32 min-h-11 flex-1 resize-none rounded-2xl bg-card py-2.5 text-[13.5px] disabled:cursor-default disabled:opacity-60"
             />
             <Button
               type="submit"
               size="icon"
               className="h-11 w-11 shrink-0 rounded-full press"
-              disabled={!draft.trim() || pending.some((p) => p.status === "pending")}
+              disabled={isRequested || !draft.trim() || pending.some((p) => p.status === "pending")}
               aria-label={t("consultation.send")}
             >
               <Send className="h-4.5 w-4.5" aria-hidden />
@@ -472,7 +557,7 @@ export default function ConsultationChatScreen() {
           </form>
         </div>
       ) : (
-        <div className="shrink-0 border-t bg-background px-4 py-3">
+        <div className="shrink-0 border-t bg-background px-4 py-3 mb-[calc(88px+env(safe-area-inset-bottom))] md:mb-0">
           <Button
             variant="outline"
             className="mx-auto h-11 w-full rounded-full press md:flex md:max-w-xl lg:max-w-[760px]"

@@ -25,6 +25,12 @@ model User {
   language      String   @default("en")
   onboardingDone Boolean @default(false)
   isDemo        Boolean  @default(false)
+  // Real account type. In the Phase 2 role-switch DEMO, a normal customer can
+  // VIEW the astrologer/admin consoles via demoPersona; `role` is what this
+  // account actually is (production split in Phase 6 keys off this).
+  role          String   @default("user") // user | astrologer | admin
+  // Active role-switch demo view: null = customer app, "astrologer" | "admin".
+  demoPersona   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -41,6 +47,7 @@ model User {
   notificationPref     NotificationPreference?
   supportTickets       SupportTicket[]
   favorites            Favorite[]
+  astrologerAccount    AstrologerAccount?
 }
 
 model Session {
@@ -117,6 +124,8 @@ model Astrologer {
   consultationCount Int     @default(0)
   pricePerMinute    Float
   isVerified        Boolean @default(false) // ONLY backend-controlled; never hard-code in UI
+  // KYC state shown in the Super Admin console. isVerified mirrors approved.
+  kycStatus         String  @default("approved") // pending | approved | rejected | suspended
   onlineStatus      String  @default("offline") // online | away | offline
   availableFrom     DateTime? // when "available soon"
   about             String
@@ -128,6 +137,25 @@ model Astrologer {
   reviews       Review[]
   consultations Consultation[]
   favorites     Favorite[]
+  account       AstrologerAccount?
+}
+
+// Phase 2 — links a User to the Astrologer profile they operate (the
+// role-switch demo persona "astrologer"). manualMode=true means the console
+// persona is live-driving this astrologer: the AI auto-reply bot is disabled
+// and manual replies flow through /api/astrologer-console/*.
+model AstrologerAccount {
+  id           String     @id @default(uuid())
+  userId       String     @unique
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  astrologerId String     @unique
+  astrologer   Astrologer @relation(fields: [astrologerId], references: [id], onDelete: Cascade)
+  manualMode   Boolean    @default(false)
+  status       String     @default("active") // active | suspended
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([astrologerId])
 }
 
 model Review {

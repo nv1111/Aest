@@ -15,7 +15,16 @@ export interface SessionUser {
   avatarUrl: string | null;
   language: string;
   onboardingDone: boolean;
+  role: string;
+  demoPersona: string | null;
   createdAt: Date;
+}
+
+/** Persona currently driving the UI: null = customer app. */
+export type DemoPersona = "astrologer" | "admin";
+
+export function isDemoPersona(v: string | null | undefined): v is DemoPersona {
+  return v === "astrologer" || v === "admin";
 }
 
 /** Resolve the current user from the session cookie. Returns null if none. */
@@ -44,6 +53,46 @@ export async function requireUser(): Promise<{ user: SessionUser } | { response:
     };
   }
   return { user };
+}
+
+/**
+ * Phase 2 role-switch demo: guard a console API route.
+ * `persona` must be the ACTIVE demo persona (user.demoPersona) — or, in
+ * production (Phase 6), the user's real `role`. Dev protocol: the customer
+ * persona can never reach console APIs.
+ */
+export async function requirePersona(
+  persona: DemoPersona
+): Promise<{ user: SessionUser } | { response: NextResponse }> {
+  const result = await requireUser();
+  if (isAuthFailure(result)) return result;
+  const { user } = result;
+  const active = isDemoPersona(user.demoPersona) ? user.demoPersona : null;
+  const allowed = active === persona || user.role === persona;
+  if (!allowed) {
+    return {
+      response: NextResponse.json(
+        {
+          error: "forbidden",
+          message: `This area is for the ${persona} console. Switch persona first.`,
+        },
+        { status: 403 }
+      ),
+    };
+  }
+  return { user };
+}
+
+/**
+ * Resolve the AstrologerAccount row for the astrologer-console caller.
+ * Returns null when the user has no linked astrologer profile yet.
+ */
+export async function getAstrologerAccount(userId: string) {
+  const { db: prisma } = await import("@/lib/db");
+  return prisma.astrologerAccount.findUnique({
+    where: { userId },
+    include: { astrologer: true },
+  });
 }
 
 export function isAuthFailure(result: unknown): result is { response: NextResponse } {

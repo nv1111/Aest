@@ -6,6 +6,8 @@ import {
   relayMessage,
   relayTyping,
   relayAstrologerRead,
+  relayStatus,
+  relayEnded,
 } from "@/lib/relay";
 
 /**
@@ -223,6 +225,247 @@ export async function generateSummary(
   return result;
 }
 
+// ------------------------------------------------- request → accept lifecycle
+
+/**
+ * Accept a "requested" consultation (status → "active", startedAt = now).
+ *
+ * Shared by the auto-accept bot timer (consultations/start), the stale-request
+ * promotion and the astrologer console accept route. Inside one transaction:
+ * status flip (guarded on status="requested" so concurrent accepts no-op),
+ * greeting + billing system messages, USER notification, astrologer
+ * consultationCount+1. After commit: greeting relay + consultation:status
+ * "active" relay. Returns the updated consultation or null when the
+ * consultation doesn't exist / is no longer in the requested state.
+ */
+export async function acceptConsultation(
+  consultationId: string
+): Promise<ConsultationWithAstrologer | null> {
+  const consultation = await db.consultation.findUnique({
+    where: { id: consultationId },
+    include: { astrologer: true },
+  });
+  if (!consultation || consultation.status !== "requested") return null;
+
+  const startedAt = new Date();
+  const accepted = await db.$transaction(async (tx) => {
+    // atomic flip — a concurrent accept (bot timer + console click) lands here
+    // exactly once
+    const flip = await tx.consultation.updateMany({
+      where: { id: consultationId, status: "requested" },
+      data: { status: "active", startedAt },
+    });
+    if (flip.count === 0) return null;
+
+    const [greeting, systemLine] = await Promise.all([
+      tx.message.create({
+        data: {
+          consultationId,
+          senderRole: "astrologer",
+          content: greetingMessage(consultation.astrologer),
+          type: "text",
+        },
+      }),
+      tx.message.create({
+        data: {
+          consultationId,
+          senderRole: "system",
+          content: systemStartMessage(consultation.ratePerMinute),
+          type: "system",
+        },
+      }),
+    ]);
+
+    await tx.notification.create({
+      data: {
+        userId: consultation.userId,
+        type: "consultation_update",
+        title: "Consultation accepted",
+        body: `${consultation.astrologer.displayName} accepted your request. Billing starts now at ${formatINR(consultation.ratePerMinute)}/min.`,
+        dataJson: JSON.stringify({ consultationId }),
+      },
+    });
+
+    await tx.astrologer.update({
+      where: { id: consultation.astrologerId },
+      data: { consultationCount: { increment: 1 } },
+    });
+
+    return { greeting, systemLine };
+  });
+  if (!accepted) return null;
+
+  // after commit: fan out so an already-open chat flips to active live
+  relayMessage(consultationId, messageDTO(accepted.greeting));
+  relayMessage(consultationId, messageDTO(accepted.systemLine));
+  relayStatus(consultationId, "active");
+
+  return await db.consultation.findUnique({
+    where: { id: consultationId },
+    include: { astrologer: true },
+  });
+}
+
+/**
+ * Decline a "requested" consultation → status "cancelled", status relay,
+ * "request declined / not charged" notification to the USER. Idempotent:
+ * returns null when not in the requested state.
+ */
+export async function declineConsultation(
+  consultationId: string
+): Promise<ConsultationWithAstrologer | null> {
+  const consultation = await db.consultation.findUnique({
+    where: { id: consultationId },
+    include: { astrologer: true },
+  });
+  if (!consultation || consultation.status !== "requested") return null;
+
+  const flip = await db.consultation.updateMany({
+    where: { id: consultationId, status: "requested" },
+    data: { status: "cancelled" },
+  });
+  if (flip.count === 0) return null;
+
+  await db.notification.create({
+    data: {
+      userId: consultation.userId,
+      type: "consultation_update",
+      title: "Request declined",
+      body: `${consultation.astrologer.displayName} couldn't accept your request right now. You haven't been charged.`,
+      dataJson: JSON.stringify({ consultationId }),
+    },
+  });
+
+  relayStatus(consultationId, "cancelled");
+
+  return await db.consultation.findUnique({
+    where: { id: consultationId },
+    include: { astrologer: true },
+  });
+}
+
+/**
+ * Bot-mode healing: a "requested" consultation older than 30s whose
+ * astrologer is NOT in manualMode is auto-accepted here. Requests orphaned by
+ * a dev-server restart (in-memory timer lost) self-heal on the next user
+ * fetch/send. Console-driven (manualMode) requests are never auto-promoted.
+ */
+export async function promoteStaleRequest(
+  consultation: ConsultationWithAstrologer
+): Promise<ConsultationWithAstrologer | null> {
+  if (consultation.status !== "requested") return null;
+  const ageMs = Date.now() - consultation.createdAt.getTime();
+  if (ageMs < 30_000) return null;
+  const account = await db.astrologerAccount.findUnique({
+    where: { astrologerId: consultation.astrologerId },
+    select: { manualMode: true },
+  });
+  if (account?.manualMode === true) return null;
+  return await acceptConsultation(consultation.id);
+}
+
+// ------------------------------------------------------------------ settlement
+
+/**
+ * Settle an ACTIVE consultation: billing, summary, notification, relays.
+ * Shared by the user-side end route and the astrologer console end route.
+ *
+ * - duration = endedAt - startedAt; minutes = max(1, ceil(duration/60))
+ * - amount = minutes × ratePerMinute, capped at the wallet balance
+ *   (never negative — if the balance is lower, only the balance is charged)
+ * - wallet debit + WalletTransaction (type "consultation_debit", negative
+ *   amount, balanceAfter, description) inside one Prisma transaction
+ * - consultation → status "ended", endedAt, durationSeconds, totalAmount
+ *   (the status flip is guarded on status="active" so concurrent enders —
+ *   user + console — settle exactly once)
+ * - LLM summary (≤8s, template fallback) → consultation.summary
+ * - notification with the plain-text billed amount to the consultation's USER
+ * - relays consultation:ended + consultation:status "ended"
+ *
+ * Returns the settled consultation or null when not found / not active.
+ */
+export async function settleConsultation(
+  consultationId: string
+): Promise<ConsultationWithAstrologer | null> {
+  const consultation = await db.consultation.findUnique({
+    where: { id: consultationId },
+    include: { astrologer: true },
+  });
+  if (!consultation || consultation.status !== "active") return null;
+
+  const endedAt = new Date();
+  const startedAt = consultation.startedAt ?? consultation.createdAt;
+  const durationSeconds = Math.max(1, Math.round((endedAt.getTime() - startedAt.getTime()) / 1000));
+  const minutes = Math.max(1, Math.ceil(durationSeconds / 60));
+  const rawAmount = minutes * consultation.ratePerMinute;
+
+  const settled = await db.$transaction(async (tx) => {
+    // atomic active → ended flip: a concurrent end call lands here exactly once
+    const flip = await tx.consultation.updateMany({
+      where: { id: consultationId, status: "active" },
+      data: { status: "ended", endedAt, durationSeconds },
+    });
+    if (flip.count === 0) return null;
+
+    const wallet = await tx.walletAccount.findUnique({
+      where: { userId: consultation.userId },
+    });
+    const balance = wallet?.balance ?? 0;
+    // cap at the wallet balance — never negative
+    const amount = Math.min(rawAmount, Math.max(0, balance));
+
+    if (amount > 0 && wallet) {
+      const balanceAfter = balance - amount;
+      await tx.walletAccount.update({
+        where: { userId: consultation.userId },
+        data: { balance: balanceAfter },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          userId: consultation.userId,
+          type: "consultation_debit",
+          amount: -amount,
+          status: "success",
+          description: `Consultation with ${consultation.astrologer.displayName} — ${minutes} min × ${formatINR(consultation.ratePerMinute)}/min`,
+          referenceId: consultation.id,
+          balanceAfter,
+        },
+      });
+    }
+
+    const updated = await tx.consultation.update({
+      where: { id: consultationId },
+      data: { totalAmount: amount },
+      include: { astrologer: true },
+    });
+    return { updated, amount };
+  });
+  if (!settled) return null;
+
+  const summary = await generateSummary(settled.updated, minutes);
+
+  const finalConsultation = await db.consultation.update({
+    where: { id: consultationId },
+    data: { summary },
+    include: { astrologer: true },
+  });
+
+  await db.notification.create({
+    data: {
+      userId: consultation.userId,
+      type: "consultation_update",
+      title: "Consultation ended",
+      body: `Billed ${formatINR(settled.amount)} for ${minutes} min. Summary saved to your history.`,
+      dataJson: JSON.stringify({ consultationId }),
+    },
+  });
+
+  relayEnded(consultationId);
+  relayStatus(consultationId, "ended");
+
+  return finalConsultation;
+}
+
 // ------------------------------------------------- scheduled astrologer reply
 
 interface ReplyScheduler {
@@ -237,8 +480,36 @@ const schedulers = new Map<string, ReplyScheduler>();
  * response of the POST message route: typing indicator ~1.2s, reply after
  * 2.5–4s. Re-sends while a reply is pending reset the timers (the astrologer
  * "reads the new message first"), so bursts don't flood the chat.
+ *
+ * Phase 2 manual mode: when the astrologer is operated by a live console
+ * persona (AstrologerAccount.manualMode), no timers are armed at all — the
+ * human replies through /api/astrologer-console/... instead. The DB check is
+ * async but the exported signature stays sync (fire-and-forget).
  */
 export function scheduleAstrologerReply(consultationId: string): void {
+  void scheduleIfBotMode(consultationId);
+}
+
+async function scheduleIfBotMode(consultationId: string): Promise<void> {
+  try {
+    const consultation = await db.consultation.findUnique({
+      where: { id: consultationId },
+      select: { astrologerId: true },
+    });
+    if (consultation) {
+      const account = await db.astrologerAccount.findUnique({
+        where: { astrologerId: consultation.astrologerId },
+        select: { manualMode: true },
+      });
+      if (account?.manualMode === true) return; // console persona is live-driving
+    }
+  } catch {
+    // DB hiccup → default is the bot; schedule anyway
+  }
+  armReplyTimers(consultationId);
+}
+
+function armReplyTimers(consultationId: string): void {
   const existing = schedulers.get(consultationId);
   if (existing) {
     if (existing.typingTimer) clearTimeout(existing.typingTimer);

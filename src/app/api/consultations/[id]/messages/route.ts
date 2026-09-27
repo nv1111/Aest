@@ -2,16 +2,25 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { ok, fail, parseBody, isParseFailure, requireUser, isAuthFailure } from "@/lib/api";
-import { messageDTO, scheduleAstrologerReply } from "../../_shared";
+import {
+  messageDTO,
+  scheduleAstrologerReply,
+  promoteStaleRequest,
+} from "../../_shared";
 import { relayMessage } from "@/lib/relay";
 
 /**
  * POST /api/consultations/[id]/messages  body { content: string (1..2000) }
  *
- * - own consultation, status must be "active" (409 otherwise)
+ * - own consultation
+ * - status "requested": 409 "not_accepted" (the composer is disabled while
+ *   waiting) — EXCEPT stale requests in bot mode (>30s old, astrologer not in
+ *   manualMode) which are auto-accepted here first (dev-restart healing)
+ * - status must be "active" after that (409 otherwise)
  * - balance guard: wallet must cover the next minute → 402 "insufficient_balance"
  * - persists the user message and relays it to the socket room
- * - schedules the AI-simulated astrologer reply (typing → LLM → relay);
+ * - schedules the AI-simulated astrologer reply (typing → LLM → relay) unless
+ *   the astrologer is in manualMode (live console persona);
  *   the schedule runs in the background and is NEVER awaited here
  * - returns { message: MessageDTO } immediately
  */
@@ -28,12 +37,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (isParseFailure(body)) return body;
 
   const { id } = await params;
-  const consultation = await db.consultation.findFirst({
+  let consultation = await db.consultation.findFirst({
     where: { id, userId: auth.user.id },
     include: { astrologer: true },
   });
   if (!consultation) {
     return fail(404, "not_found", "This consultation doesn't exist.");
+  }
+
+  // stale bot-mode requests self-heal (dev-server restarts lose the timer)
+  if (consultation.status === "requested") {
+    consultation = (await promoteStaleRequest(consultation)) ?? consultation;
+  }
+  if (consultation.status === "requested") {
+    return fail(
+      409,
+      "not_accepted",
+      "Waiting for the astrologer to accept your request."
+    );
   }
   if (consultation.status !== "active") {
     return fail(409, "consultation_ended", "This consultation has ended. Start a new one to continue.");

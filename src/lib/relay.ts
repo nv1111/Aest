@@ -59,3 +59,15 @@ export function relayAstrologerRead(consultationId: string, readAt: string): voi
 export function relayEnded(consultationId: string): void {
   relayEmit(consultationRoom(consultationId), "consultation:ended", { consultationId });
 }
+
+/**
+ * Relay a consultation lifecycle transition (requested → active / cancelled /
+ * ended). Phase 2: the chat screens listen on "consultation:status" to flip
+ * the waiting/active/closed UI without refetching.
+ */
+export function relayStatus(consultationId: string, status: string): void {
+  relayEmit(consultationRoom(consultationId), "consultation:status", {
+    consultationId,
+    status,
+  });
+}

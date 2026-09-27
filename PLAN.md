@@ -5,7 +5,7 @@
 > `worklog.md`. Do not skip phases; do not start a phase before the previous
 > one's acceptance criteria pass.
 
-- Version: 1.1
+- Version: 1.2
 - Last updated: 2026-09-27
 - Repo: https://github.com/nv1111/Aest
 - Database: Supabase Postgres (live, single source of data)
@@ -152,26 +152,28 @@ Tara ek **Indian astrology SAAS platform** hai — 3 products ek shared core pe:
 
 ---
 
-### Phase 2 — Role-Switch Demo Mode (3-in-1 App) 🎯 CURRENT
+### Phase 2 — Role-Switch Demo Mode (3-in-1 App) ✅ DONE (2026-09-27)
 
 **Goal**: isi app me astrologer + admin consoles — dev aur client-demo ke liye. Production me split hoga (Phase 6).
 
+**Result**: User.role + User.demoPersona + AstrologerAccount (manualMode) + Astrologer.kycStatus models; /api/demo/persona switcher; /api/astrologer-console/* (dashboard, availability, accept/reject, messages, consent-gated chart context, ticket, end+settle); /api/admin/* (dashboard, KYC, consultations+refund, support). Consultations ab "requested" se start hote hain — bot 2.5–4.5s me auto-accept karta hai, ya console persona manually accept karta hai (manualMode=true → bot OFF). ConsoleShell (DEMO-labelled, own nav/stacks), 8 console screens, customer chat waiting/declined states. E2E agent-browser verified: queue accept → manual reply → chart context (live engine) → end ₹42/61s billing → admin KYC approve + refund (wallet credit verified) + support resolve. Hindi + English both.
+
 **Tasks**:
-- [ ] 2.1 **DB**: `role` on User (`user|astrologer|admin`), `AstrologerAccount` model (link User↔Astrologer, credentials, status), demo admin user seed
-- [ ] 2.2 **Role switcher UI**: Profile → "Demo Mode" section (clearly labelled DEMO) → switch persona → console UI dikhe
-- [ ] 2.3 **Astrologer Console screens**: dashboard (earnings, stats, queue), incoming consultation requests (accept/reject), chat interface (reuse), user kundli context panel (with consent flag), availability toggle, reviews
-- [ ] 2.4 **Super Admin screens**: dashboard (metrics cards), astrologer KYC table (approve/reject/suspend), consultations list, support inbox, refunds
-- [ ] 2.5 **APIs**: `/api/astrologer-console/*` + `/api/admin/*` with role guards
-- [ ] 2.6 Simulated live astrologer: bot replies ko role-switch se replace — "astrologer" persona real typing + manual reply kar sake (demo me hum khush astrologer ban ke test karte hain)
-- [ ] 2.7 Bottom nav / sidebar per-role dynamic
+- [x] 2.1 **DB**: `role` on User (`user|astrologer|admin`), `AstrologerAccount` model (link User↔Astrologer, manualMode, status), `Astrologer.kycStatus`, demo seeds (3 pending / 1 suspended)
+- [x] 2.2 **Role switcher UI**: Profile → "Demo Mode" section (clearly labelled DEMO) → switch persona → console UI dikhe
+- [x] 2.3 **Astrologer Console screens**: dashboard (earnings 80% share, stats, queue), incoming consultation requests (accept/reject), chat interface (realtime), user kundli context panel (consent flag — live engine data), availability toggle, reviews
+- [x] 2.4 **Super Admin screens**: dashboard (metrics cards), astrologer KYC table (approve/reject/suspend), consultations list + refunds (wallet credit), support inbox (reply + resolve)
+- [x] 2.5 **APIs**: `/api/astrologer-console/*` + `/api/admin/*` with requirePersona role guards (403)
+- [x] 2.6 Simulated live astrologer: manualMode flag — console persona ke manual replies se bot replace hota hai; exit pe bot resume
+- [x] 2.7 Bottom nav / sidebar per-role dynamic (console tabs mobile bottom bar + desktop side rail)
 
-**Acceptance**: persona switch kar ke teeno consoles functional — astrologer chat reply kar sakta hai, admin KYC approve kar sakta hai, sab Supabase me persist ho.
+**Acceptance**: ✅ PASSED (2026-09-27) — persona switch kar ke teeno consoles functional (astrologer ne manually chat reply kiya ✓, admin ne KYC approve + refund kiya ✓, sab Supabase me persist ✓).
 
-**Effort**: M
+**Effort**: M-L (delivered across 5 subagent waves + integration)
 
 ---
 
-### Phase 3 — Astrologer Side Full (Production Logic)
+### Phase 3 — Astrologer Side Full (Production Logic) 🎯 CURRENT
 
 **Goal**: role-switch demo ko real production flows me convert.
 

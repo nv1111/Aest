@@ -55,6 +55,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ListGroup, ListRow } from "./ListRow";
+import { DemoModeSection } from "./DemoModeSection";
 
 /** Profile — tab root. Custom header (avatar, name, phone, member since), grouped rows. */
 export function ProfileScreen() {
@@ -129,6 +130,9 @@ export function ProfileScreen() {
             </div>
           </button>
         </section>
+
+        {/* ------------------------------------------------ demo mode (role-switch) */}
+        <DemoModeSection />
 
         {/* ------------------------------------------------ account */}
         <section aria-label={t("profile.groupAccount")}>

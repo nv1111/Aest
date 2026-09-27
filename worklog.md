@@ -538,3 +538,165 @@ Stage Summary:
 - PLACE SEARCH: all query shapes (3-char Latin, ≤4-char Devanagari, 5+ contains, Hindi full) now ~335 ms cold+warm. Index: geoplace_search_prefix (covering, index-only). Table 287 MB.
 - Postgres lessons banked: expression indexes never get index-only scans here; text_pattern_ops can't serve parameterized ranges; VACUUM needs a raw pg client under Prisma; visibility map must be set for IOS.
 - NEXT: Phase 2 — Role-Switch Demo Mode (PLAN.md §Phase 2, tasks 2.1+)
+
+---
+Task ID: 13-phase2-core
+Agent: main (Z.ai Code)
+Task: Phase 2 Wave 1 — role-switch demo core (schema, persona API, console shell, i18n, contracts)
+
+Work Log:
+- prisma/schema.prisma: User.role (user|astrologer|admin, default user), User.demoPersona (null|"astrologer"|"admin"), AstrologerAccount model (userId unique + astrologerId unique — one console persona per astrologer; manualMode flag; status), Astrologer.kycStatus (pending|approved|rejected|suspended). db push + prisma generate + dev server RESTART (running server caches the old client — db.astrologerAccount undefined until restart)
+- db/seed.ts: kycStatus per slug — vikram-bhatnagar/prof-harish-chandra/meera-joshi "pending", savitri-devi "suspended" (isVerified mirrors approved); re-seeded (12 astrologers)
+- lib/api.ts: SessionUser + role/demoPersona; requirePersona(persona) guard (403 unless active demoPersona or real role matches); getAstrologerAccount(userId) helper
+- /api/auth/me: returns user.role, user.demoPersona, astrologerAccount {astrologerId, displayName, slug, photoUrl, onlineStatus, pricePerMinute, rating, manualMode} | null
+- NEW /api/demo/persona POST {persona: user|astrologer|admin, astrologerId?}: astrologer → reassigns AstrologerAccount (deleteMany by astrologerId then upsert), manualMode=true, flips astrologer online; user/admin → manualMode=false + demoPersona set/cleared. CURL-VERIFIED round-trip: admin ✓ → astrologer (Rajesh Iyer, manualMode true) ✓ → user (null, manualMode false) ✓
+- src/types/console.ts: FULL console DTO contracts (ConsoleConsultationDTO, AstrologerDashboardDTO, AstrologerEarningsDTO, AstrologerContextDTO, ConsoleReviewDTO, AdminDashboardDTO, AdminAstrologerDTO, AdminConsultationDTO, AdminSupportTicketDTO)
+- src/services/console.ts: demoService + astrologerConsoleService + adminConsoleService (client-side, typed)
+- i18n: NEW en/hi console.ts dictionaries (~150 keys each: demo, nav, shell, dash, chat, reviews, admin.{nav,dash,astrologers,consultations,support}) wired into i18n index under "console" namespace
+- src/store/console.ts: console nav store (persona, tabs astrologer: dashboard/chats/reviews, admin: dashboard/astrologers/consultations/support, per-tab stacks) — fully separate from customer store/app
+- src/features/console/: ConsoleShell (header with DEMO badge + persona name + exit confirm; side rail md+; bottom tabs mobile; AnimatePresence transitions), ConsoleScreen scaffold (pops console store), registry.tsx (ast.dashboard/ast.chats/ast.chat{consultationId}/ast.reviews + admin.dashboard/admin.astrologers/admin.consultations/admin.support — ALL registered)
+- Placeholder screens: src/features/astrologer-console/{Dashboard,Chats,Chat,Reviews}Screen.tsx + src/features/admin-console/{Dashboard,Astrologers,Consultations,Support}Screen.tsx (agents REPLACE these files only)
+- AppShell: branches to ConsoleShell when me.user.demoPersona is astrologer/admin (customer AppSidebar/BottomNav hidden in console)
+- ProfileScreen: NEW DemoModeSection (Profile → "Demo Mode" dashed DEMO-labelled section; Customer/Astrologer/Super Admin cards; astrologer opens bottom Sheet picker from /api/astrologers?limit=50, filters kycStatus suspended/rejected; switch → demoService → refreshMe → shell flips)
+- /api/astrologers/_dto + AstrologerDTO: added kycStatus
+- useConsultationSocket: typing/read filters now ignore OWN userId (accept any other party — console persona typing reaches customer); NEW onStatus handler for "consultation:status" events
+- tsc: 0 src errors; lint: clean (2 unused eslint-disable auto-fixed); dev server restarted, GET / 200
+
+Stage Summary:
+- ROLE-SWITCH CORE COMPLETE AND VERIFIED: DB + persona API + shell + switcher UI + full i18n + contracts all in place
+- NEXT: Wave 2 parallel subagents — 2-a: astrologer-console APIs + requested-flow + manual-mode bot skip + settle refactor; 2-b: admin APIs (dashboard/astrologers-kyc/consultations-refund/support-reply)
+- API paths are FIXED CONTRACTS (see src/services/console.ts): /api/astrologer-console/{dashboard,availability,consultations/{id}/{accept,reject,messages,context,ticket,end}} + /api/admin/{dashboard,astrologers,astrologers/{id}/kyc,consultations,consultations/{id}/refund,support,support/{id}/reply}
+- Relay conventions: relayEmit(room c:{id}, "consultation:status", {consultationId, status}) on accept/reject/cancel; typing events from console clients use their own userId (customer hook filters own-id only)
+
+---
+Task ID: 2-b
+Agent: 2-b (Z.ai Code)
+Task: Phase 2 Wave 2 — Super Admin Console BACKEND (/api/admin/*): dashboard metrics, astrologer KYC queue (approve/reject/suspend), consultations list, wallet refunds, support inbox + replies
+
+Work Log:
+- Read worklog (13-phase2-core), PLAN.md Phase 2 (2.4/2.5), src/types/console.ts contracts, src/services/console.ts fixed paths, lib/api.ts requirePersona/ok/fail/parseBody, prisma schema (kycStatus, AstrologerAccount, WalletTransaction, SupportTicket), consultations/_shared.ts + notifications route envelope patterns
+- CREATED ONLY src/app/api/admin/** (8 files, nothing else touched):
+  - _dto.ts: shared mappers → userBrief, consoleConsultationDTO (ConsoleConsultationDTO incl. userConsentShared + messageCount), adminAstrologerDTO (JSON-parse expertise/languages, operatedByConsole flag), adminConsultationDTO (refundedAmount param), adminSupportTicketDTO — dates → ISO everywhere
+  - dashboard/route.ts: 13 metrics + 2 recent lists in ONE Promise.all (pooler economy: ~1.4s total vs 13×RTT). activeConsultations = status "active" ONLY (verified live: 0 while requested, 1 while active, 0 after end); grossRevenue = Σ totalAmount(status ended); walletLiability = Σ WalletAccount.balance; openTickets = status != resolved; newUsers7d window
+  - astrologers/route.ts: all astrologers + AstrologerAccount set in parallel; JS sort pending → approved → rejected → suspended, name asc within group
+  - astrologers/[id]/kyc/route.ts: zod action enum; approve → kycStatus approved + isVerified true; reject → rejected/false; suspend → suspended/false + onlineStatus offline (instant marketplace removal); 404 unknown id; returns full AdminAstrologerDTO
+  - consultations/route.ts: optional status filter (422 on unknown, empty param = all), newest first, limit 100, user+astrologer includes; refundedAmount via ONE WalletTransaction groupBy(type refund, referenceId IN ids) — no N+1
+  - consultations/[id]/refund/route.ts: 404 unknown / 409 not_refundable (status != ended) / 409 already_refunded (remaining < 1 paisa); $transaction re-computes the refund ledger inside (concurrent-safe), wallet upsert (+remaining), WalletTransaction{type refund, +amount, balanceAfter, referenceId=consultation id}, Notification{payment, "Refund credited", ₹N … with astrologer name}; returns {refunded}
+  - support/route.ts: optional status filter; ordering open → in_progress → resolved, newest within status — one bounded take:100 query per group batched in one Promise.all, merged + capped 100
+  - support/[id]/reply/route.ts: zod response 1..2000 + resolved?; 404 unknown; status → in_progress or resolved+resolvedAt; Notification{event, "Support replied", 90-char preview + "…" (ellipsis only when truncated)}; returns updated AdminSupportTicketDTO
+- QA (curl + cookie jar, fresh 987654xxxx user, profile Pune 18.52/73.86 Asia/Kolkata, persona → admin):
+  - 403 persona=user on all 7 endpoints BEFORE switch (message "This area is for the admin console…"); 401 no cookie; 401 on POST without cookie
+  - dashboard: metrics sane vs DB (12 astrologers, 3 pendingKyc, 9 online per seed) and live-consistent after activity (totalConsultations 2→5, grossRevenue 32→80, walletLiability, openTickets, recentUsers ≤5, recentConsultations with messageCount)
+  - astrologers: 12 rows, pending-first order, operatedByConsole true only for Rajesh Iyer (AstrologerAccount holder)
+  - kyc: approve (verified=true) → suspend (verified=false + offline) → reject, all 200 with correct DTOs; 404 + 422 (bad action) covered; QA-touched rows reset to seed state via one-off bun prisma script (/tmp/qa-reset-kyc.ts) — re-verified 3 pending / 8 approved / 1 suspended afterwards
+  - refund E2E: wallet recharge 500 (POST /api/wallet/recharge — NOTE: task said POST /api/payments, the real create route is wallet/recharge + GET /api/payments/[id] settles after 6s) → consultation start (now lands "requested" thanks to 2-a's flow, auto-accept ~5s) → end (total 16, debit to 484) → admin refund 200 {refunded:16} → balance back to 500, refund WalletTransaction with balanceAfter + referenceId, user Notification "₹16 refunded…", admin list refundedAmount 16; second refund 409 already_refunded; refund on requested AND active 409 not_refundable; 404 unknown id
+  - support: 2 tickets created user-side; list order open-first/newest-first; reply w/o resolved → in_progress (resolvedAt null); reply resolved:true → resolved + resolvedAt; user notifications received (event, body = 90 chars + …, len 91); ?status= resolved/in_progress/open filters + 422 bogus + empty-param=all
+- bun run lint exit 0; bunx tsc --noEmit 0 errors in src/ (only pre-existing skills/ analyzer error); dev.log: 44 /api/admin hits, all 200/401/403/404/409/422 — no 5xx, no runtime errors
+
+Stage Summary:
+- ALL 7 ADMIN CONTRACT ROUTES LIVE AND QA-PASSED, shapes exactly match src/types/console.ts (client adminConsoleService works unmodified)
+- Guard behavior: requirePersona("admin") → 403 for customer persona, 401 anonymous; envelope ok/fail on every route
+- Money safety: refund is transaction-recomputed (no double credit under concurrency), full-remaining-only semantics, notification + ledger row always paired
+- Deviations documented: (1) QA recharge used the real POST /api/wallet/recharge + GET /api/payments/[id] polling instead of the task's sketched POST /api/payments; (2) support-reply notification adds "…" only when the response actually exceeds 90 chars; (3) kyc QA mutations were reset via direct prisma script to preserve the 3-pending demo queue; (4) /tmp QA cookie jar was clobbered once by the parallel agent 2-a session — re-logged in with the same phone (all QA data persisted)
+- Shared-DB note: consultations list/status filter also verified against 2-a's concurrent rows (their active consultation appears with refundedAmount 0)
+
+---
+Task ID: 2-a
+Agent: 2-a (Z.ai Code)
+Task: Phase 2 Wave 2 — Astrologer Console backend APIs + consultation "requested" lifecycle + manual-mode bot skip + settlement refactor
+
+Work Log:
+- src/lib/relay.ts (additive): new `relayStatus(consultationId, status)` → emits "consultation:status" {consultationId, status} to room c:{id} (consumed by useConsultationSocket.onStatus)
+- consultations/_shared.ts: NEW exports `acceptConsultation(id)` (tx: atomic updateMany flip requested→active + startedAt, greeting + billing system messages, USER notification "Consultation accepted … {rate}/min", astrologer consultationCount+1; after commit relayMessage×2 + relayStatus "active"), `declineConsultation(id)` (→ cancelled, relay, "Request declined / not charged" notification), `promoteStaleRequest(c)` (bot-mode requests >30s old auto-accepted on user fetch/send — heals timers lost to dev-server restarts; manualMode never promoted), `settleConsultation(id)` (billing settlement refactored out of the user end route: atomic active→ended flip so concurrent user+console ends settle once, wallet debit capped at balance, WalletTransaction, LLM summary ≤8s, USER notification, relayEnded + relayStatus "ended")
+- scheduleAstrologerReply: exported signature stays sync; internally `void scheduleIfBotMode()` — DB-checks AstrologerAccount.manualMode FIRST and arms NO timers when a console persona is live-driving (typing + bot reply both skipped)
+- consultations/start: creates status "requested" (startedAt null — billing begins at accept), system message "Request sent to {name}. Waiting for them to accept…", "Request sent" notification, relayStatus "requested"; module-level acceptTimers Map (clear-on-re-entry pattern) auto-accepts in 2.5–4.5s when astrologer has NO account or manualMode≠true; timer re-checks manualMode at fire time
+- user POST …/[id]/messages: stale-promotion before the active check, then 409 "not_accepted" ("Waiting for the astrologer to accept your request.") while requested; balance guard + bot schedule unchanged
+- user GET …/[id]: stale-promotion added; otherwise unchanged — works for all statuses incl. requested
+- user POST …/[id]/end: requested → cancelled by user (nothing billed, notification, relayStatus "cancelled"); active path now delegates to settleConsultation(); concurrent-accept fallback re-reads and settles
+- NEW src/app/api/astrologer-console/_shared.ts: requireConsoleAstrologer() (requirePersona("astrologer") + AstrologerAccount resolve → 409 no_account), consoleConsultationDTO + include shape (user brief + _count.messages)
+- NEW routes (all ok/fail envelope, zod bodies, ownership = consultation.astrologerId === account.astrologerId):
+  dashboard GET (earnings from ended consultations: gross→×0.8 commission split documented; today = server-midnight; pendingPayout = last-7-days demo proxy; stats all statuses; queue newest-first, active oldest-first, recentEnded last-8, reviews last-6),
+  availability POST {onlineStatus},
+  consultations/[id]/{accept,reject} (409 not_requested when no longer requested),
+  messages GET (any status, transcript asc) + POST (active-only 409; persists senderRole "astrologer"; marks user msgs read; relayEmit "consultation:read" with the CONSOLE USER's OWN userId so customer ticks render; relayMessage),
+  context GET (consentShared=false → nulls, NOTHING computed; true → buildChartContext(userId, null) mapped to profile/chart/dasha),
+  ticket POST (makeRelayTicket(id, consoleUserId)),
+  end POST (settleConsultation reuse)
+- QA (curl, unique /tmp jars qa2a-*.jar — NOTE: /tmp jar-name collision with the parallel admin agent's qa-b.jar cost one retry round; use task-prefixed names): customer 403 on ALL console APIs ✓; persona→Rajesh Iyer(manual): start→requested (stays >15s, bot paused) ✓; message while requested → 409 not_accepted ✓; console messages GET in requested ✓ queue/DTO shapes ✓; ACCEPT → active+greeting+system+notification ✓ repeat-accept 409 ✓; manual chat both directions + read receipts ✓ bot silent 8s ✓; context with consent → full live chart (Leo lagna/Sag Moon/Taurus Sun, Rahu MD) ✓, consent flipped false in DB → consentShared:false + nulls ✓; console END → 44s→1min×₹25, wallet 500→475, transaction row, LLM summary, notification ✓ repeat 409 ✓; dashboard earnings {total 20, today 20, pendingPayout 20, lifetime 1} = 0.8×25 ✓; availability 200/422 ✓; ticket 64-hex ✓; user cancel-while-requested → cancelled, no billing ✓; console REJECT → cancelled + notification ✓; persona→user: bot auto-accept resumed (clean 4s) ✓ bot reply + typing + read-by-"astrologer" ✓; user-side END settle (63s→2min×₹23=₹46, balance 475→429) ✓; socket.io E2E (bun script joined as customer via HMAC ticket): received status→active, greeting+system messages, user/astrologer messages, typing true/false, read by userId "astrologer" (bot) AND read by console user's own id d9f7eefb… (manual) ✓; account-steal scenario → 409 no_account ✓
+- bun run lint CLEAN; bunx tsc --noEmit 0 errors in src/ (only pre-existing examples/+skills/); dev.log: zero 500s from my routes — one P2024 connection-pool timeout during a live-user geo-search burst (auto-accept timer's DB check; caught, and promoteStaleRequest healed the request on the next poll >30s — the self-healing design proved itself under real load)
+
+Stage Summary:
+- Astrologer Console API surface COMPLETE and E2E-verified against src/types/console.ts contracts: /api/astrologer-console/{dashboard,availability,consultations/[id]/{accept,reject,messages,context,ticket,end}}
+- Consultation lifecycle now request→accept: start creates "requested" (nothing billed), bot auto-accepts 2.5–4.5s in bot mode, console persona accepts/rejects manually (manualMode pauses bot typing+replies+auto-accept), user can cancel while requested (unbilled), settlement shared settleConsultation() used by BOTH user and console end routes
+- Read receipts from console carry the console user's own userId (customer hook shows ticks); status transitions relayed on consultation:status
+- Deviations from the brief (all additive): (1) accept also creates the billing system line ("Consultation started — rate ₹X/min") alongside the greeting — keeps the user-facing chat identical to the pre-Phase-2 flow, both relayed; (2) settleConsultation/acceptConsultation use guarded updateMany flips inside transactions (idempotent under concurrent user+console calls) rather than plain updates
+- Gotchas for future agents: /tmp QA jar names must be task-prefixed (parallel agents collide); Supabase pool (limit 5) can exhaust under concurrent live-user geo searches + agent QA — in-memory timers must always be fail-soft + DB-healable (promoteStaleRequest pattern)
+- NEXT: 2-b admin APIs + console frontend agents wire screens to these verified contracts; consultation review flow (user reviews ended consult) already reads dashboard earnings correctly
+---
+Task ID: 2-d
+Agent: 2-d (Z.ai Code)
+Task: Phase 2 Wave 2 — Super Admin Console FRONTEND (role-switch demo): Dashboard, Astrologer KYC queue, Consultations + refunds, Support inbox screens
+
+Work Log:
+- Read worklog (13-phase2-core + 2-b), src/services/console.ts + src/types/console.ts contracts, i18n en/hi console dicts, ConsoleShell/ConsoleScreen/registry, store/console, UI kit (EmptyState/ErrorState/PageSkeleton/SectionHeader), money helpers, ConsultationHistoryScreen + TransactionsScreen for list-row design language, globals.css (success/warning tokens exist)
+- REPLACED src/features/admin-console/DashboardScreen.tsx: React Query adminConsoleService.dashboard() refetchInterval 15s; PageSkeleton/ErrorState; 6 metric cards (2-col mobile / 4-col md, openTickets+reports span 2) with font-display numbers and new placeholder sub keys; activeConsultations>0 → card border-warning/50 bg-warning/8 + pulsing dot sub; recentUsers rows (avatar initials, name/phone, formatDateIN); recentConsultations rows (user "with" astrologer, status chip, amount). NOTE: AdminDashboardDTO.recentConsultations is ConsoleConsultationDTO[] with NO astrologer name → joined client-side from a second ["admin","consultations",""] query (id → displayName Map) instead of touching the API/types (outside my ownership); joined name renders bold, absent rows degrade gracefully
+- REPLACED AstrologersScreen.tsx: filter chips (Pending default/All/Approved/Suspended) with live counts ("2 Pending"); card = avatar + online dot, name + verified/unverified chip + "In demo console" chip (operatedByConsole), expertise(2)/languages(2), ★ rating + reviewCount, ₹/min, kyc status badge (pending=warning dot, approved=success, suspended=destructive); actions: pending → Approve (primary) + Reject (outline, AlertDialog), approved → Suspend (destructive-quiet, AlertDialog); single kyc mutation (id, action, name) invalidates ["admin"] (dashboard metrics move too) + approveToast/rejectToast/suspendToast {name}; actionFailed on error; screen-level confirm dialog carries target name
+- REPLACED ConsultationsScreen.tsx: server-side status filter (all/active/ended/cancelled → ?status= param, default all) with keepPreviousData; rows = user "with" astrologer, mode icon + label, status chip, duration, billed ("—" when null), refunded chip (success, formatINR) when >0, createdAt datetime, line-clamp-1 summary with Summary: prefix; tap row → inline expand (AnimatePresence height) with full summary/duration/billed·refunded/rate-per-min; Refund button only on ENDED with remaining > 0 (shows remaining amount) → AlertDialog (user + amount in desc) → refund mutation → invalidate ["admin"] + refundToast {amount}{name}; onError maps ApiError.code already_refunded → alreadyRefunded, not_refundable → nothingToRefund, else errorMessage / refundFailed
+- REPLACED SupportScreen.tsx: filter chips Open(default)/All/Resolved, server-side: "open" merges support("open") + support("in_progress") in Promise.all (API has no "unresolved" param — documented deviation), resolved → ?status=resolved, all → no param; ticket card = subject, user name·phone·datetime, status chip (open=warning / in_progress=primary / resolved=success), category badge (5 category keys mapped, general fallback), message line-clamp-3 + Show more/less (only when >180 chars), existing response quoted (blockquote, responseLabel); reply composer per non-resolved ticket (Textarea + Send reply disabled when empty + Resolve); DOCUMENTED CHOICE: Resolve sends the textarea draft when written, else the standard closing note (closingNote key) since the API requires 1..2000 chars per reply; reply/resolve mutation invalidates support + dashboard (openTickets) with replyToast {name}/resolveToast
+- i18n: added keys ONLY inside console.admin with en/hi parity: dash.{newUsersSub,activeNowSub,walletLiabilitySub,onlineSub,pendingKycSub} (placeholder subs for metric cards), support.{closingNote,responseLabel,expand,collapse}
+- 430px-first verified: header + bottom tab bar + grids + composers all fit; 44px touch targets (h-11 buttons, h-10 chips), semantic HTML (role=tablist/tab + aria-selected, aria-expanded, article/list/ul, role=alert via ErrorState), no indigo/blue, warm tokens + terracotta primary only, framer-motion subtle (section fade-up stagger, card enter, height expand)
+
+QA (agent-browser, named session task2d-*, gateway :81, screenshots in /tmp/2d-admin-*.png):
+- DEV SERVER FOUND CRASHED mid-QA (port 3000 dead at 11:32, no next dev process, dev.log ends silently — likely OOM with parallel agents' chrome sessions): restarted it detached via `nohup bun run dev` (same package.json script, writes dev.log through tee); came up ~90s, all agents' traffic resumed. Only deviation from the "never restart" rule — it was already down.
+- Fresh user E2E: login 9822018842 (OTP 864472 read from request-otp response via curl replay — verify-otp uses the newest code) → name "Aarti Deshmukh" → birth profile Pune/1995-06-15/10:30 → home → Profile → Demo Mode → Super Admin: shell renders 4 tabs + persona header + toast
+- Dashboard: metrics live (customers 12 "+12 in the last 7 days", consultations 13 "1 active now" with warning-highlighted card (class verified border-warning/50 bg-warning/8) while a parallel agent's chat was live, gross revenue ₹227→₹352 growing live, wallet liability sub, astrologers "9 online · 2 KYC pending", open tickets, reports), recent users (5 rows incl. my fresh user), recent consultations rows "QA Customer with Rajesh Iyer" (join works) + status chips + ₹ amounts; 15s polling visible in dev.log
+- Astrologers: default Pending=3 seed; APPROVE Meera Joshi → toast "Meera Joshi approved — now verified." + pending 3→2 + Approved 8→9 + she shows Verified/Approved in All filter; REJECT Prof. Harish Chandra via AlertDialog → pending 2→1, Rejected badge; SUSPEND Ananya Mehta via AlertDialog → approved 9→8, suspended 1→2, Suspend button gone (kyc POST 200s in dev.log); Rajesh Iyer shows "In demo console" chip + Suspend; QA mutations reset via one-off prisma script (slugs prof-harish-chandra→pending, ananya-mehta→approved/online) — final DB state 2 pending + 1 newly approved (Meera) as requested
+- Consultations: All filter rows with user "with" astrologer, mode, status chips, durations, billed amounts, Summary: lines; requested row correctly shows "—" and no refund action; already-refunded row (₹16) shows "refunded ₹16" chip + no button; Ended filter (server-side) → 10 rows all Ended; row tap expands Duration/Billed·Refunded/rate; REFUND on "QA Customer with Rajesh Iyer" ₹25 → AlertDialog ("— QA Customer · ₹25") → toast "Refunded ₹25 to QA Customer's wallet." → refunded chip appears + button hides (DOM-verified); second refund POST → 409 {"error":"already_refunded"} (my code path maps it to the alreadyRefunded toast)
+- Support: Open filter shows an in_progress ticket (merge works); exited console → created fresh ticket as CUSTOMER (Profile → Support → "Wallet recharge not showing", general, ₹500 wallet complaint) → back to admin → ticket appears at top of Open → typed reply → Send → status "In progress" + response quoted + textarea cleared + toast "Reply sent to Aarti Deshmukh."; Resolve with EMPTY draft → standard closing note stored ("Your ticket is now resolved — write back if you still need help.") → toast "Ticket resolved." + ticket left the Open filter → Resolved filter shows it with "Resolved" chip + closing note + no composer; All filter = 3 tickets
+- Hindi: switched app language → कंट्रोल रूम, tabs डैशबोर्ड/ज्योतिषी/परामर्श/सहायता, chips "2 बाकी/12 सभी/9 स्वीकृत/1 निलंबित", all new sub keys (पिछले 7 दिनों में +12, अभी चालू, ग्राहक वॉलेट में ₹1,313, ऑनलाइन, KYC बाकी), support labels (हमारा जवाब, ग्राहक को जवाब लिखें…); switched back to English
+- 430px mobile viewport: header/bottom tabs/2-col metrics/support composer verified + screenshots; no browser console errors; dev.log clean (all /api/admin 200/409 only, zero 5xx)
+- bun run lint CLEAN (whole repo — 2-c's shared.tsx errors got fixed in parallel during my QA); bunx tsc --noEmit: 0 src errors (only pre-existing examples/ + skills/)
+
+Stage Summary:
+- All 4 admin console screens live against 2-b's verified contracts: dashboard metrics + recents (15s poll), KYC queue with all three actions + confirm dialogs + toasts, consultations with server-side filters + inline expand + full refund flow incl. 409 mapping, support inbox with reply/resolve + closing-note fallback
+- Deviations: (1) dev server crash mid-QA → restarted detached (it was dead, not a config change); (2) dashboard recent-consultation astrologer names are client-side joined from the admin consultations list (Dashboard DTO lacks astrologer — API/types are outside my ownership); (3) support "Open" filter = open + in_progress via two parallel server calls (no "unresolved" API param); (4) Resolve-on-empty-draft sends the standard closingNote (backend requires ≥1 char per reply) — choice documented in the screen header comment; (5) KYC QA mutations reset via one-off prisma script to preserve the 2-pending demo queue
+- i18n: 9 new keys (en+hi) inside console.admin only; existing keys untouched; parity verified
+- Left for integrator: nothing blocking; note the metric sub labels use new *Sub keys (dash.newUsers etc. remain as plain labels); the refund I issued in QA (₹25 to QA Customer) and the resolved demo ticket are intentional live-data residue; my QA user 9822018842 (Aarti Deshmukh) exists with a resolved ticket
+
+---
+Task ID: 2-c
+Agent: 2-c (Z.ai Code) [entry written by integrator — agent hit its turn ceiling mid-QA]
+Task: Astrologer console FRONTEND — dashboard, chats, chat, reviews screens + console socket hook + customer chat requested-state
+
+Work Log:
+- Replaced all 4 placeholders in src/features/astrologer-console/: DashboardScreen (greeting card w/ rating-chips, availability segmented toggle w/ optimistic UI, earnings 2×2 grid, queue w/ badge + accept/decline + AlertDialog, active chats w/ LIVE badge + 1s running-duration ticker, recent ended, reviews preview), ChatsScreen (queue/active/ended sections), ChatScreen (bare layout: custom header w/ status dot, message log w/ astrologer-right/user-left bubbles, auto-scroll, typing indicator w/ 4s safety-clear, auto-grow composer w/ debounced typing emit, accept/decline inline when requested, end w/ AlertDialog, Chart context Sheet — consent badge, born block, lagna/moon/sun/nakshatra, dasha line, planets grid w/ retro badges), ReviewsScreen (average + count + list + demo note)
+- Created src/features/astrologer-console/shared.tsx: useConsoleDashboard (10s poll), useTicker, CustomerAvatar, QueueCard, ActiveChatCard, EndedRow, StarRow, QuietEmpty, initials
+- Created src/features/astrologer-console/useConsoleChatSocket.ts: console-side socket (io /?XTransformPort=3003, join w/ astrologer-console ticket + own userId; consultation:message/typing[other-party-only]/read/ended/status handlers; typing emit w/ own userId so the customer's hook shows it)
+- Customer-side ConsultationChatScreen: requested-state waiting banner + disabled composer, onStatus handler (active → refetch + accepted toast; cancelled → declined banner + back), 409 not_accepted tolerated silently
+- i18n: added consultation.waitingAccept/requestDeclined* en+hi; console.chat cancelledBanner/availabilityFailed/common.back/errorGeneric etc. en+hi
+
+Stage Summary:
+- All files compile (tsc 0 src errors at integration time); agent-browser QA was in progress when the turn ceiling hit — full E2E verification completed by the integrator (Task 14) and one race-condition bug was found+fixed there (see 14)
+
+---
+Task ID: 14
+Agent: main (Z.ai Code)
+Task: Phase 2 Wave 4 — integration, E2E QA, fixes, PLAN/worklog updates
+
+Work Log:
+- Wave 2+3 subagents completed (2-a astrologer-console APIs + requested-lifecycle; 2-b admin APIs; 2-c astrologer UI; 2-d admin UI). Merged state: tsc 0 src errors, lint clean.
+- FIXED (console chat): end-of-consultation ₹0/(0s) flash — socket "ended" event flipped the banner before the refetch landed. endMutation.onSuccess now patches the React-Query cache with the settled consultation from the mutation response; banners render a "settling the bill…" state (new i18n endedSettling en+hi) when totalAmount is null.
+- E2E VERIFIED via agent-browser (localhost:81, session user Vikram):
+  * Persona: Profile → Demo Mode → Astrologer → picker sheet (12 rows, suspended hidden) → Devika Sharma console (DEMO badge, role-switch header, mobile bottom tabs / desktop side rail); exit w/ confirm returns to customer app
+  * Astrologer dashboard: greeting, availability segmented control (online/away/offline w/ optimistic mutation), earnings card (₹17 = 80% share of settled gross), queue badge + 10s poll, active w/ LIVE + running duration, recent, reviews preview
+  * TRUE QUEUE FLOW: as fresh customer (curl: profile Jaipur + ₹500 recharge) started consultation while Devika manualMode=true → sits "requested" (bot paused); console queue showed it ≤11s; Accept → chat opened with greeting + billing system line; manual reply delivered to customer (transcript verified via API); Chart sheet: consent badge, Cancer lagna, Moon Virgo·Chitra 2, dasha, planets (LIVE engine data); End → ₹42/61s settled, LLM summary, wallet debited, read receipts
+  * Customer side: waiting banner + disabled composer while requested; accepted→chat live; ended→bill+summary; consultation details screen shows transcript
+  * BOT RESUME: after exiting console persona, customer message got a chart-grounded AI reply (~6s: 10th house stellium, Rahu-Mercury-Mars dasha, Jupiter 12th transit) — manualMode toggle works both ways
+  * Admin: control-room metrics (revenue, ₹1,449 wallet liability, 9 online, open tickets, recent lists); KYC approve (pending 2→1, toast, verified chip); refund ₹42 → customer wallet back to ₹500 + refunded chip + refund WalletTransaction; support reply → In progress; resolve → moves to Resolved
+  * Hindi: entire admin console renders Devanagari (कंट्रोल रूम, ज्योतिषी, परामर्श, सहायता); mobile 390px + desktop 1280px verified; zero page errors; console warnings only pre-existing Radix DialogContent advisories
+- Cleanup: restored Prof. Harish Chandra to kycStatus pending (my QA approve); QA residue users/consultations left in DB as realistic demo data
+
+Stage Summary:
+- PHASE 2 COMPLETE per PLAN.md acceptance: persona switch → all three surfaces functional (customer app, astrologer console with manual chat + accept/reject + chart context, admin console with KYC + refunds + support), everything persisted in Supabase
+- Deviation from brief worth noting: consultations now begin in "requested" state — bot auto-accepts in 2.5-4.5s (bot mode) or waits for console accept (manual mode); user end route handles requested→cancelled unbilled
+- NEXT (Phase 3 per PLAN): astrologer-side production flows (real availability calendar, per-minute server-side billing, earnings ledger + payouts, notification fan-out); or Phase 4 pooja module — PLAN.md order says Phase 3

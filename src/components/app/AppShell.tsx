@@ -9,6 +9,7 @@ import { ScreenFor, withSuspense } from "./screens";
 import { AppSidebar } from "./AppSidebar";
 import { BottomNav } from "./BottomNav";
 import { Splash } from "./Splash";
+import { ConsoleShell } from "@/features/console/ConsoleShell";
 
 /**
  * AppShell — one route, client-side navigation.
@@ -53,6 +54,12 @@ export function AppShell() {
         </div>
       );
     }
+    // Phase 2 role-switch demo: the astrologer/admin consoles replace the
+    // customer surface entirely (own nav, own stacks, DEMO-labelled).
+    const persona = user.demoPersona;
+    if (persona === "astrologer" || persona === "admin") {
+      return <ConsoleShell persona={persona} />;
+    }
     return (
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
@@ -69,7 +76,12 @@ export function AppShell() {
     );
   })();
 
-  const showNav = booted && !!me.data?.user?.onboardingDone;
+  // Console personas replace the customer nav completely.
+  const inConsole =
+    booted &&
+    !!me.data?.user?.onboardingDone &&
+    (me.data.user.demoPersona === "astrologer" || me.data.user.demoPersona === "admin");
+  const showNav = booted && !!me.data?.user?.onboardingDone && !inConsole;
 
   return (
     <div className="flex min-h-dvh justify-center bg-[oklch(0.93_0.01_84)] md:justify-start md:bg-background">

@@ -15,6 +15,7 @@ import consultation from "./en/consultation";
 import wallet from "./en/wallet";
 import reports from "./en/reports";
 import profile from "./en/profile";
+import consoleEn from "./en/console";
 
 import hiCommon from "./hi/common";
 import hiNav from "./hi/nav";
@@ -27,6 +28,7 @@ import hiConsultation from "./hi/consultation";
 import hiWallet from "./hi/wallet";
 import hiReports from "./hi/reports";
 import hiProfile from "./hi/profile";
+import consoleHi from "./hi/console";
 
 export type Locale = "en" | "hi";
 export const LOCALES: { code: Locale; label: string; nativeLabel: string }[] = [
@@ -46,6 +48,7 @@ const en: Record<string, unknown> = {
   wallet,
   reports,
   profile,
+  console: consoleEn,
 };
 
 const hi: Record<string, unknown> = {
@@ -60,6 +63,7 @@ const hi: Record<string, unknown> = {
   wallet: hiWallet,
   reports: hiReports,
   profile: hiProfile,
+  console: consoleHi,
 };
 
 const dictionaries: Record<Locale, Record<string, unknown>> = { en, hi };

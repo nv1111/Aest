@@ -22,6 +22,12 @@ const consultation = {
 
   // chat
   chatTitle: "परामर्श",
+  waitingAccept: "{name} के स्वीकार की प्रतीक्षा…",
+  waitingNote: "{name} स्वीकार करने तक कोई बिलिंग नहीं होगी।",
+  requestDeclinedTitle: "अनुरोध अस्वीकार हो गया",
+  requestDeclinedBody: "{name} इस अनुरोध पर नहीं आ सके। आपसे कोई राशि नहीं ली गई।",
+  requestDeclinedBack: "वापस जाएँ",
+  acceptedToast: "{name} ने स्वीकार किया — परामर्श शुरू।",
   demoAstrologer: "डेमो ज्योतिषी — जवाब AI से लिखे जाते हैं",
   typeMessage: "अपना संदेश लिखें…",
   send: "भेजें",

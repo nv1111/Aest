@@ -18,6 +18,7 @@ export interface PublicAstrologer {
   consultationCount: number;
   pricePerMinute: number;
   isVerified: boolean;
+  kycStatus: string;
   onlineStatus: string;
   availableFrom: string | null;
   about: string;
@@ -38,6 +39,7 @@ export function publicAstrologer(a: AstrologerRow): PublicAstrologer {
     consultationCount: a.consultationCount,
     pricePerMinute: a.pricePerMinute,
     isVerified: a.isVerified,
+    kycStatus: a.kycStatus,
     onlineStatus: a.onlineStatus,
     availableFrom: a.availableFrom?.toISOString() ?? null,
     about: a.about,
