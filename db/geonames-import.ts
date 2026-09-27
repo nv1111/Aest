@@ -163,10 +163,15 @@ async function importPlaces() {
   }
   console.log(`DONE places: ${total} rows inserted`);
 
-  // 3) trigram search infrastructure
-  console.log("creating pg_trgm extension + GIN index…");
+  // 3) search infrastructure
+  console.log("creating pg_trgm extension + indexes…");
   await db.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
   await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS geoplace_search_trgm ON "GeoPlace" USING gin ("searchText" gin_trgm_ops)`);
+  // Covering btree for short-query prefix search (two-phase index-only scan,
+  // Heap Fetches: 0 — see src/lib/geo/places.ts). NOTE: index-only scans need
+  // the visibility map — run `VACUUM ANALYZE "GeoPlace"` after import via a
+  // plain pg client (Prisma wraps VACUUM in a transaction and fails).
+  await db.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS geoplace_search_prefix ON "GeoPlace" ("searchText") INCLUDE ("population","geonameId")`);
   await db.$executeRawUnsafe(`ANALYZE "GeoPlace"`);
   const size = await db.$queryRawUnsafe<{ size: string }[]>(`SELECT pg_size_pretty(pg_total_relation_size('"GeoPlace"')) AS size`);
   const count = await db.$queryRawUnsafe<{ n: bigint }[]>(`SELECT count(*) AS n FROM "GeoPlace"`);

@@ -81,6 +81,16 @@ export function OnboardingFlow() {
     setLoading(true);
     try {
       const res = await authService.verifyOtp(phone, code, name || undefined);
+      // The code may verify server-side while the browser silently refuses to
+      // persist the session cookie (embedded preview iframe in browsers that
+      // block third-party cookies). Probe /me BEFORE advancing — otherwise the
+      // user walks into a confusing 401 wall at profile save.
+      try {
+        await authService.me();
+      } catch {
+        toast.error(t("onboarding.otpSessionBlocked"));
+        return false;
+      }
       await refreshMe();
       if (!res.user.name) {
         setStep("name");

@@ -35,6 +35,7 @@ const onboarding = {
   otpResend: "Resend code",
   otpResent: "A new code has been sent",
   otpWrong: "That code doesn't match. Please check and retry.",
+  otpSessionBlocked: "Signed in, but this embedded preview can't save your session. Please tap 'Open in New Tab' above the preview panel and sign in there — it takes 20 seconds.",
   nameTitle: "What should we call you?",
   nameLabel: "Your name",
   namePlaceholder: "e.g. Ananya",

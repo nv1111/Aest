@@ -144,6 +144,10 @@ Tara ek **Indian astrology SAAS platform** hai — 3 products ek shared core pe:
 
 **Acceptance**: ✅ agent-browser QA — village "Bisrakh, Gautam Buddha Nagar, UP" found; map pin → nearest "Noida (0.3 km)" + tz auto; NYC manual coords → "New York City · America/New_York" (USA customer case); Hindi UI ✓; VLM screenshot check (real tiles + pin) ✓
 
+**Hardening round (post-acceptance, same day)**:
+- **Preview-panel login fix**: the Z.ai preview embeds the app in a third-party iframe — `SameSite=Lax` session cookies were refused there (user hit `POST /api/profiles 401` ×4 right after successful OTP login). Cookie now `SameSite=None; Secure` (localhost stays a secure context); OTP step probes `/me` before advancing and shows actionable "Open in New Tab" guidance if the browser still blocks it (i18n en/hi). Server-side Origin checks for CSRF = Phase 6.
+- **Short-query search perf**: 3–4 char queries measured 2.7–4.5 s (GIN recheck + sort over ~100k candidates). Now: covering btree `geoplace_search_prefix` (searchText, INCLUDE population+id) + two-phase index-only scan (Heap Fetches: 0) → **~335 ms cold AND warm**; en_US collation gives diacritic-insensitive prefix match (Rām… for "ram") as a bonus. Devanagari short queries keep the GIN token-prefix arm; 5+ chars unchanged (GIN contains). Table 287 MB incl. all indexes.
+
 **Key gotcha**: NEVER keep 100MB+ data files inside the project dir — Turbopack watches them → 3GB RSS → OOM-killed dev server repeatedly. Data lives at /home/z/geodata now.
 
 ---

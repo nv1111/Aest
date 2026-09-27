@@ -34,22 +34,68 @@ export function toPlace(r: GeoPlaceRow): Place {
 export const escapeLike = (s: string): string => s.replace(/([%_\\])/g, "\\$1");
 
 /**
- * Trigram-indexed name search (3+ chars): contains-match ranked by
- * exact → prefix → population. `limit` clamped 1–25 by the caller.
+ * Trigram-indexed name search (3+ chars): ranked exact → prefix →
+ * population. `limit` clamped 1–25 by the caller.
+ *
+ * Three match strategies:
+ * 1. SHORT LATIN (≤4 chars, ASCII): two-phase query over the covering index
+ *    `geoplace_search_prefix` (searchText btree, INCLUDE population+id):
+ *    inner = Index-Only Scan of the [needle, successor) key range +
+ *    in-memory top-N by population (Heap Fetches: 0); outer fetches the top
+ *    rows by PK. searchText starts with lower(name), so the range = name
+ *    prefix; the en_US.UTF-8 collation also matches diacritics (Rām… for
+ *    "ram"). The GIN contains-path measured 2.7–4.5 s on cold 3-char
+ *    queries; this stays ~150 ms cold.
+ * 2. SHORT DEVANAGARI (≤4 chars): GIN prefix 'पट%' OR token '% पट%' —
+ *    Hindi alt names live mid-searchText, so a name-prefix alone never
+ *    reaches them; Devanagari posting lists are tiny → fast.
+ * 3. 5+ CHARS: GIN contains on searchText (full surface incl. Hindi).
  */
 export async function searchGeoPlaces(q: string, limit: number): Promise<Place[]> {
-  const lq = escapeLike(q.trim().toLowerCase());
-  const rows = await db.$queryRawUnsafe<GeoPlaceRow[]>(
-    `SELECT "geonameId","name","countryName","countryCode","admin1Name","admin2Name","latitude","longitude","timezone","population"
+  const needle = q.trim().toLowerCase();
+  const lq = escapeLike(needle);
+  const isShort = lq.length <= 4;
+  const isAscii = !/[^\x00-\x7f]/.test(lq);
+  const capped = Math.min(Math.max(limit, 1), 25);
+
+  let sql: string;
+  let params: unknown[];
+
+  if (isShort && isAscii) {
+    // Lexicographic successor of the needle ("ram" → "ran"); the open-closed
+    // range [needle, next) captures exactly the searchText prefix matches.
+    const next = needle.slice(0, -1) + String.fromCharCode(needle.charCodeAt(needle.length - 1) + 1);
+    sql = `SELECT "geonameId","name","countryName","countryCode","admin1Name","admin2Name","latitude","longitude","timezone","population"
      FROM "GeoPlace"
-     WHERE "searchText" LIKE '%' || $1 || '%'
+     WHERE "geonameId" IN (
+       SELECT "geonameId" FROM "GeoPlace"
+       WHERE "searchText" >= $1 AND "searchText" < $2
+       ORDER BY "population" DESC
+       LIMIT ${capped}
+     )
+     ORDER BY "population" DESC`;
+    params = [needle, next];
+  } else if (isShort) {
+    sql = `SELECT "geonameId","name","countryName","countryCode","admin1Name","admin2Name","latitude","longitude","timezone","population"
+     FROM "GeoPlace"
+     WHERE "searchText" LIKE $1 OR "searchText" LIKE $3
      ORDER BY (lower("name") = $2) DESC,
               (lower("name") LIKE $2 || '%') DESC,
               "population" DESC
-     LIMIT ${Math.min(limit, 25)}`,
-    lq,
-    q.trim().toLowerCase(),
-  );
+     LIMIT ${capped}`;
+    params = [`${lq}%`, needle, `% ${lq}%`];
+  } else {
+    sql = `SELECT "geonameId","name","countryName","countryCode","admin1Name","admin2Name","latitude","longitude","timezone","population"
+     FROM "GeoPlace"
+     WHERE "searchText" LIKE $1
+     ORDER BY (lower("name") = $2) DESC,
+              (lower("name") LIKE $2 || '%') DESC,
+              "population" DESC
+     LIMIT ${capped}`;
+    params = [`%${lq}%`, needle];
+  }
+
+  const rows = await db.$queryRawUnsafe<GeoPlaceRow[]>(sql, ...params);
   return rows.map(toPlace);
 }
 

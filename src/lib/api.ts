@@ -57,13 +57,27 @@ export async function createSession(userId: string): Promise<string> {
   return token;
 }
 
+/**
+ * The app is embedded as a THIRD-PARTY iframe inside the Z.ai preview panel
+ * (top-level page is on z.ai; the app origin is *.space-z.ai). In that
+ * context browsers refuse to set or send SameSite=Lax cookies — OTP login
+ * "succeeds" server-side, but every subsequent authed call 401s (observed:
+ * verify-otp 200 → me 401 → POST /api/profiles 401 ×4). SameSite=None +
+ * Secure is the standard setting for iframe-embedded apps; browsers treat
+ * http://localhost as a secure context, so dev QA keeps working.
+ * (CSRF surface widens with None — server-side Origin checks land in Phase 6.)
+ */
+const SESSION_COOKIE_ATTRS = {
+  httpOnly: true as const,
+  sameSite: "none" as const,
+  secure: true,
+  path: "/",
+};
+
 export async function setSessionCookie(token: string) {
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
+    ...SESSION_COOKIE_ATTRS,
     maxAge: SESSION_DAYS * 86400,
   });
 }
@@ -74,7 +88,9 @@ export async function clearSessionCookie() {
   if (token) {
     await db.session.deleteMany({ where: { token } });
   }
-  store.delete(SESSION_COOKIE);
+  // Expire with the SAME attributes — a default (Lax) deletion Set-Cookie
+  // would itself be blocked in the third-party iframe context.
+  store.set(SESSION_COOKIE, "", { ...SESSION_COOKIE_ATTRS, maxAge: 0 });
 }
 
 // ------------------------------------------------------------------ responses
